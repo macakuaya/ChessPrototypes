@@ -455,7 +455,19 @@ const tryMove = (from, to) => {
     
     return true
   } else {
-    // Wrong move - reset streak
+    // Wrong move - still execute the move visually
+    const isCapture = getPieceOnSquare(to) !== undefined
+    makeMove(from, to)
+    lastMove.value = { from, to }
+    
+    // Play move sound
+    if (isCapture) {
+      playSound('capture')
+    } else {
+      playSound('move')
+    }
+    
+    // Reset streak and set wrong state
     streak.value = 0
     questionState.value = 'wrong'
     return false
@@ -543,6 +555,21 @@ const handleHint = () => {
   if (questionState.value === 'solution') return
   streak.value = 0 // Reset streak on hint
   questionState.value = 'hint'
+}
+
+const showSolution = () => {
+  // Show the solution (correct move) and transition to solution state
+  const correct = currentQuestion.value.correctMove
+  makeMove(correct.from, correct.to)
+  questionState.value = 'solution'
+  lastMove.value = { from: correct.from, to: correct.to }
+  // Play move sound
+  playSound('move')
+}
+
+const handleRetry = () => {
+  // Reload the current question to reset the board
+  loadQuestion(currentQuestionIndex.value)
 }
 
 const openVideo = () => {
@@ -763,7 +790,13 @@ onUnmounted(() => {
                 Complete
               </CcButton>
             </template>
-            <!-- Normal states -->
+            <!-- Wrong state: Video, Solution, Retry -->
+            <template v-else-if="questionState === 'wrong'">
+              <CcButton variant="secondary" size="large" :icon="{ name: icons.video }" @click="openVideo">Video</CcButton>
+              <CcButton variant="secondary" size="large" :icon="{ name: 'circle-fill-question' }" @click="showSolution">Solution</CcButton>
+              <CcButton variant="danger" size="large" :icon="{ name: 'arrow-line-right' }" @click="handleRetry">Retry</CcButton>
+            </template>
+            <!-- Normal states (intro, hint, solution) -->
             <template v-else>
               <CcButton variant="secondary" size="large" :icon="{ name: icons.video }" @click="openVideo">Video</CcButton>
               <template v-if="questionState === 'solution'">
