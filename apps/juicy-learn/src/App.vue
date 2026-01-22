@@ -854,6 +854,7 @@ body {
   background: var(--color-bg-primary, #312e2b);
   color: var(--color-text-boldest, white);
   font-family: 'Chess Sans', system-ui, sans-serif;
+  user-select: none;
 }
 </style>
 
@@ -904,12 +905,12 @@ body {
 .square.selected.light { background: #f6f669; }
 .square.selected.dark { background: #bbcb44; }
 
-/* Success move highlight - green-500 (#45753C) at 50% opacity overlay */
+/* Success move highlight - green-300 (#81B64C) at 50% opacity overlay */
 .square.last-move::before {
   content: '';
   position: absolute;
   inset: 0;
-  background: rgba(69, 117, 60, 0.5); /* green-500 at 50% */
+  background: rgba(129, 182, 76, 0.5); /* green-300 at 50% */
   z-index: 1;
   pointer-events: none;
 }
