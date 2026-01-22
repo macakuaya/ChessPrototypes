@@ -98,15 +98,31 @@
       transition: transform 0.2s ease;
     }
 
+    .pancito {
+      cursor: pointer;
+    }
+
     .pancito:hover {
       transform: scale(1.1) rotate(-5deg);
+    }
+
+    .pancito:active {
+      transform: scale(0.95);
     }
   </style>
 </head>
 <body>
-  <img src="./Pancito.png" alt="Pancito" class="pancito" />
+  <img src="./Pancito.png" alt="Pancito" class="pancito" onclick="meow()" />
+  <audio id="meow-sound" src="./meow.mp3" preload="auto"></audio>
+  <script>
+    function meow() {
+      const sound = document.getElementById('meow-sound');
+      sound.currentTime = 0;
+      sound.play();
+    }
+  </script>
   <div class="container">
-    <h1>♟️ Chess Prototypes</h1>
+    <h1>Chess Prototypes</h1>
     <p class="subtitle">Experimental UI prototypes for Chess.com</p>
 
     <div class="prototypes">
