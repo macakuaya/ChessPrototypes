@@ -25,6 +25,8 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '20'
+          registry-url: 'https://npm.pkg.github.com'
+          scope: '@chesscom'
 
       - name: Setup Pages
         uses: actions/configure-pages@v4
@@ -33,6 +35,8 @@ jobs:
       - name: Install dependencies (skills)
         working-directory: apps/skills
         run: npm ci
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
       - name: Build (skills)
         working-directory: apps/skills
@@ -42,6 +46,8 @@ jobs:
       - name: Install dependencies (juicy-learn)
         working-directory: apps/juicy-learn
         run: npm ci
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
       - name: Build (juicy-learn)
         working-directory: apps/juicy-learn
