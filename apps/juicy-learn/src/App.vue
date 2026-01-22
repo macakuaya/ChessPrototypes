@@ -933,13 +933,19 @@ onUnmounted(() => {
 
           <!-- Progress -->
           <div class="progress-section">
-            <div class="progress-label">
-              <span>Challenge</span>
-              <span class="progress-numbers mono">
-                <span>{{ currentChallenge }}</span>
-                <span class="progress-slash">/</span>
-                <span>{{ totalChallenges }}</span>
-              </span>
+            <div class="progress-header">
+              <div class="progress-label">
+                <span>Challenge</span>
+                <span class="progress-numbers mono">
+                  <span>{{ currentChallenge }}</span>
+                  <span class="progress-slash">/</span>
+                  <span>{{ totalChallenges }}</span>
+                </span>
+              </div>
+              <div class="streak" :style="{ color: streakColor }">
+                <CcIcon name="element-fire-blank" :size="16" class="fire-icon" />
+                <span>{{ displayedStreak }}</span>
+              </div>
             </div>
             <div class="progress-row">
               <div class="progress-bar" ref="progressBarRef">
@@ -949,10 +955,6 @@ onUnmounted(() => {
                 <img :src="`${base}icons/misc/Diamond.svg`" alt="" class="queen-diamond" />
                 <CcIcon name="piece-fill-queen" :size="16" class="queen-icon" />
               </div>
-            </div>
-            <div class="streak" :style="{ color: streakColor }">
-              <CcIcon name="element-fire-blank" :size="16" class="fire-icon" />
-              <span>{{ displayedStreak }}</span>
             </div>
           </div>
         </div>
@@ -1215,6 +1217,12 @@ body {
   flex-direction: column;
   max-width: 50rem;
   overflow: visible; /* Allow explosion animation to overflow */
+}
+
+.progress-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
 .progress-label {
