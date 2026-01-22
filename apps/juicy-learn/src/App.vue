@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, watch, onMounted } from 'vue'
 import { CcButton, CcIconButton, CcIcon } from '@chesscom/design-system'
 import CoachBubble from './components/CoachBubble.vue'
 
@@ -21,17 +21,101 @@ const icons = {
   next: 'arrow-chevron-right',
 }
 
-// State
-const currentChallenge = ref(2)
-const totalChallenges = ref(3)
-const streak = ref(5)
-const coachMessage = ref('Sometimes I play bad moves just to see what happens.')
-const progressPercent = ref((2 / 3) * 100)
+// ============================================
+// LESSON DATA
+// ============================================
+const lesson = {
+  name: 'The Goals of Chess',
+  questions: [
+    {
+      fen: '6k1/5pp1/3b1n1p/1p6/1P1R4/6PP/5P2/6K1 w - - 0 1',
+      correctMove: { from: 'd4', to: 'd6', piece: 'R' }, // Rxd6
+      intro: 'Which piece can White capture?',
+      wrong: "There's a better move. Try again and look for a possible capture.",
+      hint: 'The black bishop is on the same file as your rook.',
+      solution: 'Good choice! White captures the bishop.',
+    },
+    {
+      fen: '6k1/6p1/7p/2Q5/8/6P1/5P1P/4r1K1 w - - 0 0',
+      correctMove: { from: 'g1', to: 'g2', piece: 'K' }, // Kg2
+      intro: "White's king is in check. How can you get to safety?",
+      wrong: 'Illegal',
+      hint: 'Move the king forward so that the black rook will no longer be able to attack it.',
+      solution: 'Nice move! The king is safe there.',
+    },
+    {
+      fen: '6k1/5pp1/3Q3p/3b4/8/6P1/5PKP/2r5 w - - 0 1',
+      correctMove: { from: 'd6', to: 'd5', piece: 'Q' }, // Qxd5
+      intro: "The black bishop is checking White's king. What is White's best way out of check?",
+      wrong: "This move escapes the check, but it's better to capture the black bishop. How can you do that?",
+      hint: "Capture the piece that's checking your king.",
+      solution: 'Good choice! Capturing the bishop removes the attack on your king.',
+    },
+    {
+      fen: '6k1/1p3pp1/p5q1/8/7R/7P/3Q1PP1/6K1 w - - 0 0',
+      correctMove: { from: 'd2', to: 'd8', piece: 'Q' }, // Qd8#
+      intro: 'White can check with the queen or with the rook. Which one is checkmate?',
+      wrong: "There's a possible checkmate, but that's not it. Look at your checks and try again.",
+      hint: "Find a way to check so that the black king can't capture the piece that attacks it.",
+      solution: "Nice work! That's checkmate!",
+    },
+    {
+      fen: '3k4/R7/1R6/8/8/7P/3q2PK/8 w - - 0 1',
+      correctMove: { from: 'b6', to: 'b8', piece: 'R' }, // Rb8#
+      intro: 'White has several checks, but only one is mate. Can you find it?',
+      wrong: "There's a checkmate, but that's not it. Look at your checks and try again.",
+      hint: "Look at your checks. See if you can find one that Black can't escape.",
+      solution: 'Checkmate! Well done!',
+    },
+  ],
+}
 
-// Chess board setup
+// ============================================
+// GAME STATE
+// ============================================
+const currentQuestionIndex = ref(0)
+const questionState = ref('intro') // 'intro', 'wrong', 'hint', 'solution'
+const streak = ref(0)
+const selectedSquare = ref(null)
+const lastMove = ref(null) // { from, to }
+
+// Computed
+const currentQuestion = computed(() => lesson.questions[currentQuestionIndex.value])
+const totalChallenges = computed(() => lesson.questions.length)
+const currentChallenge = computed(() => currentQuestionIndex.value + 1)
+const progressPercent = computed(() => (currentQuestionIndex.value / totalChallenges.value) * 100)
+const lessonName = computed(() => lesson.name)
+
+// Coach message based on state
+const coachMessage = computed(() => {
+  const q = currentQuestion.value
+  switch (questionState.value) {
+    case 'intro': return q.intro
+    case 'wrong': return q.wrong
+    case 'hint': return q.hint
+    case 'solution': return q.solution
+    default: return q.intro
+  }
+})
+
+// Streak color logic
+// 0-1 = green (text-win), 2 = lowest, 3-4 = low, 5-6 = medium, 7+ = high
+const streakColor = computed(() => {
+  const s = streak.value
+  if (s <= 1) return 'var(--color-text-win, #81b64c)'
+  if (s === 2) return 'var(--color-streak-lowest)'
+  if (s <= 4) return 'var(--color-streak-low)'
+  if (s <= 6) return 'var(--color-streak-medium)'
+  return 'var(--color-streak-high)'
+})
+
+// ============================================
+// CHESS BOARD
+// ============================================
 const files = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h']
 const ranks = [8, 7, 6, 5, 4, 3, 2, 1]
 const base = import.meta.env.BASE_URL
+const pieces = ref([])
 
 // Generate all squares
 const squares = computed(() => {
@@ -51,55 +135,158 @@ const isLightSquare = (square) => {
   return (fileIndex + rankIndex) % 2 === 1
 }
 
-// Starting position pieces
-const pieces = ref([
-  // Black pieces (rank 8)
-  { type: 'br', square: 'a8' },
-  { type: 'bn', square: 'b8' },
-  { type: 'bb', square: 'c8' },
-  { type: 'bq', square: 'd8' },
-  { type: 'bk', square: 'e8' },
-  { type: 'bb', square: 'f8' },
-  { type: 'bn', square: 'g8' },
-  { type: 'br', square: 'h8' },
-  // Black pawns (rank 7)
-  { type: 'bp', square: 'a7' },
-  { type: 'bp', square: 'b7' },
-  { type: 'bp', square: 'c7' },
-  { type: 'bp', square: 'd7' },
-  { type: 'bp', square: 'e7' },
-  { type: 'bp', square: 'f7' },
-  { type: 'bp', square: 'g7' },
-  { type: 'bp', square: 'h7' },
-  // White pawns (rank 2)
-  { type: 'wp', square: 'a2' },
-  { type: 'wp', square: 'b2' },
-  { type: 'wp', square: 'c2' },
-  { type: 'wp', square: 'd2' },
-  { type: 'wp', square: 'e2' },
-  { type: 'wp', square: 'f2' },
-  { type: 'wp', square: 'g2' },
-  { type: 'wp', square: 'h2' },
-  // White pieces (rank 1)
-  { type: 'wr', square: 'a1' },
-  { type: 'wn', square: 'b1' },
-  { type: 'wb', square: 'c1' },
-  { type: 'wq', square: 'd1' },
-  { type: 'wk', square: 'e1' },
-  { type: 'wb', square: 'f1' },
-  { type: 'wn', square: 'g1' },
-  { type: 'wr', square: 'h1' },
-])
+// Parse FEN to pieces array
+const parseFEN = (fen) => {
+  const pieceMap = {
+    'r': 'br', 'n': 'bn', 'b': 'bb', 'q': 'bq', 'k': 'bk', 'p': 'bp',
+    'R': 'wr', 'N': 'wn', 'B': 'wb', 'Q': 'wq', 'K': 'wk', 'P': 'wp',
+  }
+  const result = []
+  const [position] = fen.split(' ')
+  const rows = position.split('/')
+  
+  rows.forEach((row, rowIndex) => {
+    let colIndex = 0
+    for (const char of row) {
+      if (/\d/.test(char)) {
+        colIndex += parseInt(char, 10)
+      } else if (pieceMap[char]) {
+        const file = files[colIndex]
+        const rank = 8 - rowIndex
+        result.push({ type: pieceMap[char], square: `${file}${rank}` })
+        colIndex++
+      }
+    }
+  })
+  
+  return result
+}
+
+// Load question position
+const loadQuestion = (index) => {
+  const q = lesson.questions[index]
+  pieces.value = parseFEN(q.fen)
+  questionState.value = 'intro'
+  selectedSquare.value = null
+  lastMove.value = null
+}
 
 // Get piece on a specific square
 const getPieceOnSquare = (square) => {
   return pieces.value.find(p => p.square === square)
 }
 
-// Get piece image path from Chess.com CDN (neo theme, 300px for crisp rendering)
+// Get piece image path from Chess.com CDN
 const getPieceImage = (piece) => {
   return `https://www.chess.com/chess-themes/pieces/neo/300/${piece.type}.png`
 }
+
+// Check if square is selected
+const isSelected = (square) => selectedSquare.value === square
+
+// Check if square is part of last move
+const isLastMove = (square) => {
+  if (!lastMove.value) return false
+  return lastMove.value.from === square || lastMove.value.to === square
+}
+
+// ============================================
+// MOVE HANDLING
+// ============================================
+const handleSquareClick = (square) => {
+  // If already solved, don't allow more moves
+  if (questionState.value === 'solution') return
+  
+  const piece = getPieceOnSquare(square)
+  
+  // If no piece selected yet
+  if (!selectedSquare.value) {
+    // Can only select white pieces (player plays as white)
+    if (piece && piece.type.startsWith('w')) {
+      selectedSquare.value = square
+    }
+    return
+  }
+  
+  // If clicking same square, deselect
+  if (selectedSquare.value === square) {
+    selectedSquare.value = null
+    return
+  }
+  
+  // If clicking another white piece, select that instead
+  if (piece && piece.type.startsWith('w')) {
+    selectedSquare.value = square
+    return
+  }
+  
+  // Attempt move
+  const from = selectedSquare.value
+  const to = square
+  const movingPiece = getPieceOnSquare(from)
+  
+  if (!movingPiece) {
+    selectedSquare.value = null
+    return
+  }
+  
+  // Check if this is the correct move
+  const correct = currentQuestion.value.correctMove
+  if (from === correct.from && to === correct.to) {
+    // Correct move!
+    makeMove(from, to)
+    streak.value++
+    questionState.value = 'solution'
+    lastMove.value = { from, to }
+  } else {
+    // Wrong move - reset streak
+    streak.value = 0
+    questionState.value = 'wrong'
+  }
+  
+  selectedSquare.value = null
+}
+
+// Execute a move on the board
+const makeMove = (from, to) => {
+  // Remove any piece on target square (capture)
+  pieces.value = pieces.value.filter(p => p.square !== to)
+  // Move the piece
+  const piece = pieces.value.find(p => p.square === from)
+  if (piece) {
+    piece.square = to
+  }
+}
+
+// ============================================
+// ACTIONS
+// ============================================
+const handleHint = () => {
+  if (questionState.value === 'solution') return
+  streak.value = 0 // Reset streak on hint
+  questionState.value = 'hint'
+}
+
+const nextQuestion = () => {
+  if (currentQuestionIndex.value < totalChallenges.value - 1) {
+    currentQuestionIndex.value++
+    loadQuestion(currentQuestionIndex.value)
+  }
+}
+
+const prevQuestion = () => {
+  if (currentQuestionIndex.value > 0) {
+    currentQuestionIndex.value--
+    loadQuestion(currentQuestionIndex.value)
+  }
+}
+
+// ============================================
+// INITIALIZATION
+// ============================================
+onMounted(() => {
+  loadQuestion(0)
+})
 </script>
 
 <template>
@@ -112,8 +299,12 @@ const getPieceImage = (piece) => {
             v-for="square in squares" 
             :key="square"
             class="square"
-            :class="isLightSquare(square) ? 'light' : 'dark'"
+            :class="[
+              isLightSquare(square) ? 'light' : 'dark',
+              { 'selected': isSelected(square), 'last-move': isLastMove(square) }
+            ]"
             :data-square="square"
+            @click="handleSquareClick(square)"
           >
             <!-- Piece -->
             <img 
@@ -148,7 +339,7 @@ const getPieceImage = (piece) => {
               alt="Lessons" 
               class="lessons-icon"
             />
-            <span>Evaluating Captures</span>
+            <span>{{ lessonName }}</span>
           </div>
           <div class="header-icon-container">
             <CcIcon :name="icons.sound" :size="20" />
@@ -175,14 +366,14 @@ const getPieceImage = (piece) => {
             </div>
             <div class="progress-row">
               <div class="progress-bar">
-                <div class="progress-fill" :style="{ width: progressPercent + '%' }"></div>
+                <div class="progress-fill" :style="{ width: progressPercent + '%', background: streakColor }"></div>
               </div>
               <div class="queen-badge">
                 <img :src="`${base}icons/misc/Diamond.svg`" alt="" class="queen-diamond" />
                 <CcIcon name="piece-fill-queen" :size="16" class="queen-icon" />
               </div>
             </div>
-            <div class="streak">
+            <div class="streak" :style="{ color: streakColor }">
               <CcIcon name="element-fire-blank" :size="16" class="fire-icon" />
               <span>{{ streak }}</span>
             </div>
@@ -192,14 +383,27 @@ const getPieceImage = (piece) => {
         <!-- Footer -->
         <footer class="panel-footer">
           <div class="action-buttons">
-            <CcButton variant="secondary" size="large" :icon="{ name: icons.video }">Video</CcButton>
-            <CcButton variant="secondary" size="large" :icon="{ name: icons.hint }">Hint</CcButton>
+            <template v-if="questionState === 'solution'">
+              <CcButton 
+                variant="primary" 
+                size="large" 
+                :icon="{ name: icons.next }"
+                @click="nextQuestion"
+                :disabled="currentQuestionIndex >= totalChallenges - 1"
+              >
+                {{ currentQuestionIndex >= totalChallenges - 1 ? 'Complete!' : 'Next' }}
+              </CcButton>
+            </template>
+            <template v-else>
+              <CcButton variant="secondary" size="large" :icon="{ name: icons.video }">Video</CcButton>
+              <CcButton variant="secondary" size="large" :icon="{ name: icons.hint }" @click="handleHint">Hint</CcButton>
+            </template>
           </div>
           <div class="toolbar">
             <CcIcon :name="icons.settings" :size="24" class="toolbar-icon" />
             <div class="toolbar-nav">
-              <CcIcon :name="icons.prev" :size="24" class="toolbar-icon" />
-              <CcIcon :name="icons.next" :size="24" class="toolbar-icon" />
+              <CcIcon :name="icons.prev" :size="24" class="toolbar-icon" @click="prevQuestion" />
+              <CcIcon :name="icons.next" :size="24" class="toolbar-icon" @click="nextQuestion" />
             </div>
           </div>
         </footer>
@@ -260,10 +464,17 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
+  cursor: pointer;
 }
 
 .square.light { background: #ebecd0; }
 .square.dark { background: #779556; }
+
+.square.selected.light { background: #f6f669; }
+.square.selected.dark { background: #bbcb44; }
+
+.square.last-move.light { background: #f6f669; }
+.square.last-move.dark { background: #bbcb44; }
 
 .piece {
   width: 100%;
@@ -272,7 +483,6 @@ body {
   z-index: 1;
   cursor: pointer;
   user-select: none;
-  pointer-events: none;
 }
 
 .coord {
@@ -410,8 +620,8 @@ body {
 
 .progress-fill {
   height: 100%;
-  background: var(--color-bg-success, #81b64c);
   border-radius: 99.9rem;
+  transition: width 300ms cubic-bezier(0.4, 0, 0.2, 1), background 300ms cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .queen-badge {
@@ -441,10 +651,10 @@ body {
   display: flex;
   align-items: center;
   gap: 0.2rem;
-  color: var(--color-streak-medium, #fa742c);
   font-weight: 700;
   font-size: 1.7rem;
   line-height: 2rem;
+  transition: color 0.3s ease;
 }
 
 .fire-icon {
