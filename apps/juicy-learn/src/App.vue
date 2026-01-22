@@ -23,6 +23,22 @@ const icons = {
 }
 
 // ============================================
+// ANIMATION COLORS (configurable)
+// ============================================
+const ANIMATION_COLORS = {
+  skill: {
+    overlay: '#E3AA24',      // Gold overlay
+    coin: '#E3AA24',         // Gold coin/pill
+    textColor: '#cf8d1b',    // Darker gold for text
+  },
+  brilliant: {
+    overlay: '#26C2A3',      // Teal overlay
+    coin: '#26C2A3',         // Teal coin/pill
+    textColor: '#1a9a82',    // Darker teal for text
+  },
+}
+
+// ============================================
 // LESSON DATA
 // ============================================
 const lesson = {
@@ -87,6 +103,15 @@ const draggedFrom = ref(null)
 const dragPosition = ref({ x: 0, y: 0 })
 const boardRef = ref(null)
 
+// Animation state
+const skillHighlight = ref(null)      // Square to highlight with skill animation (e.g., 'd6')
+const skillHighlightLabel = ref(null) // Label text for skill highlight (e.g., 'Correct!')
+const showExplosion = ref(false)      // Show the explosion circle at progress bar
+const brilliantHighlight = ref(null)  // Square to highlight with brilliant animation
+
+// Refs for animation target positioning
+const progressBarRef = ref(null)      // Reference to progress bar element
+
 // Computed
 const currentQuestion = computed(() => lesson.questions[currentQuestionIndex.value])
 const totalChallenges = computed(() => lesson.questions.length)
@@ -128,6 +153,56 @@ const files = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h']
 const ranks = [8, 7, 6, 5, 4, 3, 2, 1]
 const base = import.meta.env.BASE_URL
 const pieces = ref([])
+
+// Board size in rem (680px at 62.5% font-size = 68rem)
+const BOARD_SIZE = 680 // pixels
+const SQUARE_SIZE = BOARD_SIZE / 8
+const GAP_SIZE = 32 // gap between board and panel (3.2rem)
+
+// Calculate coin fall position for a given square (as CSS values)
+// Target: start of the progress bar in the sidebar
+const getCoinFallPosition = (square) => {
+  if (!square) return { x: '800%', y: '100%' }
+  
+  const fileIndex = files.indexOf(square[0])
+  const rankIndex = 8 - parseInt(square[1], 10) // 0 = top row (rank 8)
+  
+  // Square's position on the board
+  const squareLeft = fileIndex * SQUARE_SIZE
+  const squareTop = rankIndex * SQUARE_SIZE
+  
+  // Target position: start of progress bar in sidebar
+  // Board (680px) + Gap (32px) + Panel padding (24px) + small offset = ~750px from board left
+  // Progress bar is roughly 240px from top of layout (header 48px + padding 24px + coach ~120px + gap 16px + label 20px)
+  const targetX = BOARD_SIZE + GAP_SIZE + 40 // Start of progress bar
+  const targetY = 240 // Approximate Y position of progress bar
+  
+  // Final position relative to square (for CSS left/top)
+  const finalLeft = targetX - squareLeft
+  const finalTop = targetY - squareTop
+  
+  // Convert to percentage of square size
+  return {
+    x: (finalLeft / SQUARE_SIZE) * 100,
+    y: (finalTop / SQUARE_SIZE) * 100
+  }
+}
+
+// Get CSS custom properties for the skill highlight square
+const getSkillHighlightStyle = computed(() => {
+  if (!skillHighlight.value) return {}
+  const pos = getCoinFallPosition(skillHighlight.value)
+  return {
+    '--coin-fall-x': `${pos.x}%`,
+    '--coin-fall-y': `${pos.y}%`
+  }
+})
+
+// Check if square has skill highlight
+const hasSkillHighlight = (square) => skillHighlight.value === square
+
+// Check if square has brilliant highlight
+const hasBrilliantHighlight = (square) => brilliantHighlight.value === square
 
 // Generate all squares
 const squares = computed(() => {
@@ -270,6 +345,38 @@ const makeMove = (from, to) => {
   }
 }
 
+// Trigger skill highlight animation on a square
+const triggerSkillAnimation = (square, label = 'Correct!') => {
+  skillHighlight.value = square
+  skillHighlightLabel.value = label
+  
+  // After 800ms (morph animation) + 50ms pause + 500ms (fall), show explosion
+  setTimeout(() => {
+    showExplosion.value = true
+    
+    // Clear explosion after 500ms
+    setTimeout(() => {
+      showExplosion.value = false
+    }, 500)
+  }, 1350)
+  
+  // Clear highlight after total animation duration
+  setTimeout(() => {
+    skillHighlight.value = null
+    skillHighlightLabel.value = null
+  }, 1850)
+}
+
+// Trigger brilliant highlight animation on a square
+const triggerBrilliantAnimation = (square) => {
+  brilliantHighlight.value = square
+  
+  // Clear after 800ms (no falling, stays on board briefly)
+  setTimeout(() => {
+    brilliantHighlight.value = null
+  }, 1200)
+}
+
 // Try to make a move (used by both click and drag)
 const tryMove = (from, to) => {
   if (questionState.value === 'solution') return false
@@ -299,6 +406,9 @@ const tryMove = (from, to) => {
     } else {
       playSound('move')
     }
+    
+    // Trigger animation on the target square
+    triggerSkillAnimation(to, 'Correct!')
     
     return true
   } else {
@@ -442,34 +552,85 @@ onUnmounted(() => {
     <div class="layout">
       <!-- Left: Chessboard -->
       <div class="board-section">
-        <div class="chessboard" ref="boardRef">
-          <div 
-            v-for="square in squares" 
-            :key="square"
-            class="square"
-            :class="[
-              isLightSquare(square) ? 'light' : 'dark',
-              { 'selected': isSelected(square), 'last-move': isLastMove(square) }
-            ]"
-            :data-square="square"
-            @click="handleSquareClick(square)"
-          >
-            <!-- Piece -->
-            <img 
-              v-if="getPieceOnSquare(square) && !isPieceDragged(square)" 
-              class="piece"
-              :class="{ 'draggable': getPieceOnSquare(square)?.type.startsWith('w') }"
-              :src="getPieceImage(getPieceOnSquare(square))"
-              :alt="getPieceOnSquare(square).type"
-              draggable="false"
-              @mousedown="handleDragStart($event, square)"
-              @touchstart="handleDragStart($event, square)"
-            />
-            <!-- File label (bottom row) -->
-            <span v-if="square[1] === '1'" class="coord file-coord">{{ square[0] }}</span>
-            <!-- Rank label (left column) -->
-            <span v-if="square[0] === 'a'" class="coord rank-coord">{{ square[1] }}</span>
+        <div class="board-wrapper">
+          <div class="chessboard" ref="boardRef">
+            <div 
+              v-for="square in squares" 
+              :key="square"
+              class="square"
+              :class="[
+                isLightSquare(square) ? 'light' : 'dark',
+                { 'selected': isSelected(square), 'last-move': isLastMove(square) }
+              ]"
+              :data-square="square"
+              @click="handleSquareClick(square)"
+            >
+              <!-- Skill Highlight Overlay -->
+              <div 
+                v-if="hasSkillHighlight(square)" 
+                class="skill-highlight-overlay"
+              ></div>
+              
+              <!-- Skill Star Icon (separate from overlay to avoid opacity inheritance) -->
+              <svg 
+                v-if="hasSkillHighlight(square)" 
+                class="skill-star-icon" 
+                :style="getSkillHighlightStyle"
+                viewBox="0 0 20 20" 
+                fill="none"
+              >
+                <path d="M6.56624 15.6425C6.14456 15.9236 5.64255 15.5622 5.78311 15.0803L6.82729 11.1244L3.6546 8.55415C3.23291 8.21278 3.57427 7.65053 3.9558 7.61037L8.05219 7.38949L9.51805 3.57423C9.59837 3.37342 9.79917 3.23286 10.0201 3.23286C10.2209 3.23286 10.4217 3.35334 10.502 3.57423L11.9678 7.38949L16.0442 7.61037C16.5662 7.63045 16.6867 8.27302 16.3454 8.53407L13.1727 11.1244L14.2168 15.0803C14.3574 15.5823 13.7751 15.8634 13.4337 15.6425L9.99998 13.4337L6.56624 15.6425Z" fill="white"/>
+              </svg>
+              
+              <!-- Skill Label Bubble (transforms from white pill to gold circle) -->
+              <div 
+                v-if="hasSkillHighlight(square) && skillHighlightLabel" 
+                class="skill-label-bubble"
+                :style="getSkillHighlightStyle"
+              >
+                <span class="skill-label-text">{{ skillHighlightLabel }}</span>
+              </div>
+
+              <!-- Brilliant Highlight Overlay (teal color) -->
+              <div 
+                v-if="hasBrilliantHighlight(square)" 
+                class="brilliant-highlight-overlay"
+              ></div>
+              
+              <!-- Brilliant Icon (exclamation double) - scaled 1.8x from 16 to 29 -->
+              <div 
+                v-if="hasBrilliantHighlight(square)" 
+                class="brilliant-icon-wrapper"
+              >
+                <CcIcon name="move-exclamation-double" :size="29" color="white" />
+              </div>
+              
+              <!-- Brilliant Label Bubble (teal, stays on board) -->
+              <div 
+                v-if="hasBrilliantHighlight(square)" 
+                class="brilliant-label-bubble"
+              >
+                <span class="brilliant-label-text">Brilliant!</span>
+              </div>
+
+              <!-- Piece -->
+              <img 
+                v-if="getPieceOnSquare(square) && !isPieceDragged(square)" 
+                class="piece"
+                :class="{ 'draggable': getPieceOnSquare(square)?.type.startsWith('w') }"
+                :src="getPieceImage(getPieceOnSquare(square))"
+                :alt="getPieceOnSquare(square).type"
+                draggable="false"
+                @mousedown="handleDragStart($event, square)"
+                @touchstart="handleDragStart($event, square)"
+              />
+              <!-- File label (bottom row) -->
+              <span v-if="square[1] === '1'" class="coord file-coord">{{ square[0] }}</span>
+              <!-- Rank label (left column) -->
+              <span v-if="square[0] === 'a'" class="coord rank-coord">{{ square[1] }}</span>
+            </div>
           </div>
+          
         </div>
         
         <!-- Dragged piece (follows cursor) -->
@@ -528,8 +689,13 @@ onUnmounted(() => {
               </span>
             </div>
             <div class="progress-row">
-              <div class="progress-bar">
+              <div class="progress-bar" ref="progressBarRef">
                 <div class="progress-fill" :style="{ width: progressPercent + '%', background: streakColor }"></div>
+                <!-- Explosion Circle (appears at start of progress bar) -->
+                <div 
+                  v-if="showExplosion" 
+                  class="explosion-circle"
+                ></div>
               </div>
               <div class="queen-badge">
                 <img :src="`${base}icons/misc/Diamond.svg`" alt="" class="queen-diamond" />
@@ -624,6 +790,7 @@ body {
 .board-section {
   position: relative;
   display: flex;
+  overflow: visible; /* Allow animations to overflow */
 }
 
 .chessboard {
@@ -633,7 +800,7 @@ body {
   grid-template-columns: repeat(8, 1fr);
   grid-template-rows: repeat(8, 1fr);
   border-radius: 0.3rem;
-  overflow: hidden;
+  overflow: visible; /* Allow animations within board, wrapper clips at edge */
 }
 
 .square {
@@ -642,6 +809,7 @@ body {
   align-items: center;
   justify-content: center;
   cursor: pointer;
+  overflow: visible; /* Allow animations to overflow */
 }
 
 .square.light { background: #ebecd0; }
@@ -765,6 +933,7 @@ body {
   display: flex;
   flex-direction: column;
   gap: 1.6rem;
+  overflow: visible; /* Allow explosion animation to overflow */
 }
 
 /* Progress Section */
@@ -772,6 +941,7 @@ body {
   display: flex;
   flex-direction: column;
   max-width: 50rem;
+  overflow: visible; /* Allow explosion animation to overflow */
 }
 
 .progress-label {
@@ -802,6 +972,7 @@ body {
   display: flex;
   align-items: center;
   gap: 0.8rem;
+  overflow: visible; /* Allow explosion animation to overflow */
 }
 
 .progress-bar {
@@ -809,13 +980,15 @@ body {
   height: 1.6rem;
   background: var(--color-bg-progress-track, rgba(255, 255, 255, 0.1));
   border-radius: 1rem;
-  overflow: hidden;
+  overflow: visible; /* Allow explosion to overflow */
+  position: relative; /* For explosion positioning */
 }
 
 .progress-fill {
   height: 100%;
   border-radius: 99.9rem;
   transition: width 300ms cubic-bezier(0.4, 0, 0.2, 1), background 300ms cubic-bezier(0.4, 0, 0.2, 1);
+  overflow: hidden; /* Keep fill corners rounded */
 }
 
 .queen-badge {
@@ -893,5 +1066,395 @@ body {
 .toolbar-nav {
   display: flex;
   gap: 0.8rem;
+}
+
+/* ========== BOARD WRAPPER ========== */
+.board-wrapper {
+  display: inline-block;
+  position: relative;
+  /* Clip coin when it exits the RIGHT side of the board */
+  /* Allow overflow on top (for label bubble popup) and bottom */
+  clip-path: inset(-50px 0 -50px -50px); /* top right bottom left - clips right edge only */
+}
+
+/* ========== EXPLOSION CIRCLE ========== */
+/* Positioned at start of progress bar in sidebar */
+.explosion-circle {
+  position: absolute;
+  background: v-bind('ANIMATION_COLORS.skill.overlay');
+  border-radius: 50%;
+  /* Position at left edge of progress bar */
+  left: 0;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 10;
+  pointer-events: none;
+  /* Animation: grow from 36px to 200px, fade out */
+  animation: explosion-expand 500ms cubic-bezier(0, 0, 0.4, 1) forwards;
+}
+
+@keyframes explosion-expand {
+  0% {
+    width: 36px;
+    height: 36px;
+    opacity: 1;
+  }
+  100% {
+    width: 200px;
+    height: 200px;
+    opacity: 0;
+  }
+}
+
+/* ========== SKILL HIGHLIGHT ANIMATIONS ========== */
+/* Scaled 1.8x for 680px board (85px squares vs original 47px squares) */
+
+/* Skill Highlight Overlay */
+.skill-highlight-overlay {
+  position: absolute;
+  inset: 0;
+  background: v-bind('ANIMATION_COLORS.skill.overlay');
+  opacity: 0;
+  z-index: 2;
+  pointer-events: none;
+  animation: skill-overlay-animate 800ms cubic-bezier(0, 0, 0.4, 1) forwards;
+}
+
+@keyframes skill-overlay-animate {
+  /* State 1 → State 2: fade in */
+  0% {
+    opacity: 0;
+  }
+  37.5% { /* 300ms */
+    opacity: 0.8;
+  }
+  /* Hold until 500ms (62.5%) */
+  62.5% {
+    opacity: 0.8;
+  }
+  /* State 2 → State 3: fade out */
+  100% { /* 800ms */
+    opacity: 0;
+  }
+}
+
+/* Skill Star Icon - scaled 1.8x */
+.skill-star-icon {
+  position: absolute;
+  z-index: 5;
+  pointer-events: none;
+  filter: drop-shadow(0px 2px 0px rgba(0, 0, 0, 0.25));
+  /* Total: 800ms morph + 50ms pause + 500ms fall = 1350ms */
+  animation: skill-star-animate 1350ms cubic-bezier(0.8, 0, 1, 1) forwards;
+}
+
+@keyframes skill-star-animate {
+  /* State 1 (0ms) - scaled from 20px to 36px */
+  0% {
+    opacity: 0.1;
+    width: 36px;
+    height: 36px;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%) rotate(0deg);
+  }
+  /* State 2 (300ms = 22.2%) - scaled from 24px to 44px */
+  22.2% {
+    opacity: 1;
+    width: 44px;
+    height: 44px;
+    top: 55%;
+    left: 50%;
+    transform: translate(-50%, -50%) rotate(0deg);
+  }
+  /* Hold State 2 (500ms = 37%) */
+  37% {
+    opacity: 1;
+    width: 44px;
+    height: 44px;
+    top: 55%;
+    left: 50%;
+    transform: translate(-50%, -50%) rotate(0deg);
+  }
+  /* State 3: in gold pill (800ms = 59.3%) - scaled from 16px to 29px */
+  59.3% {
+    opacity: 1;
+    width: 29px;
+    height: 29px;
+    top: 7px;
+    left: 90%;
+    transform: translate(-50%, -50%) rotate(0deg);
+  }
+  /* Hold State 3 - pause before fall (850ms = 63%) */
+  63% {
+    opacity: 1;
+    width: 29px;
+    height: 29px;
+    top: 7px;
+    left: 90%;
+    transform: translate(-50%, -50%) rotate(0deg);
+  }
+  /* State 4: fall to target position, rotate -90° (1350ms = 100%) */
+  100% {
+    opacity: 1;
+    width: 29px;
+    height: 29px;
+    top: var(--coin-fall-y, 600%);
+    left: var(--coin-fall-x, -170%);
+    transform: translate(-50%, -50%) rotate(-90deg);
+  }
+}
+
+/* Skill Label Bubble (transforms from white pill to gold circle, then falls) - scaled 1.8x */
+.skill-label-bubble {
+  position: absolute;
+  left: 90%;
+  top: -11px;
+  height: 36px;
+  z-index: 4;
+  pointer-events: none;
+  box-shadow: 0px 2px 0px rgba(0, 0, 0, 0.15);
+  white-space: nowrap;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 18px;
+  /* Total: 800ms morph + 50ms pause + 500ms fall = 1350ms */
+  animation: skill-pill-animate 1350ms cubic-bezier(0.8, 0, 1, 1) forwards;
+}
+
+@keyframes skill-pill-animate {
+  /* State 1: centered, faded (0ms) */
+  0% {
+    opacity: 0;
+    top: 50%;
+    left: 90%;
+    transform: translate(-50%, -50%);
+    max-width: 200px;
+    padding: 0 11px;
+    background: white;
+  }
+  /* State 2: at top, visible, white pill (300ms = 22.2%) */
+  22.2% {
+    opacity: 1;
+    top: -11px;
+    left: 90%;
+    transform: translate(-50%, 0);
+    max-width: 200px;
+    padding: 0 11px;
+    background: white;
+  }
+  /* Hold State 2 (500ms = 37%) */
+  37% {
+    opacity: 1;
+    top: -11px;
+    left: 90%;
+    transform: translate(-50%, 0);
+    max-width: 200px;
+    padding: 0 11px;
+    background: white;
+  }
+  /* State 3: gold circle (800ms = 59.3%) - scaled from 20px to 36px */
+  59.3% {
+    opacity: 1;
+    top: -11px;
+    left: 90%;
+    transform: translate(-50%, 0);
+    max-width: 36px;
+    padding: 0;
+    background: v-bind('ANIMATION_COLORS.skill.coin');
+  }
+  /* Hold State 3 - pause before fall (850ms = 63%) */
+  63% {
+    opacity: 1;
+    top: -11px;
+    left: 90%;
+    transform: translate(-50%, 0);
+    max-width: 36px;
+    padding: 0;
+    background: v-bind('ANIMATION_COLORS.skill.coin');
+  }
+  /* State 4: fall to target position (1350ms = 100%) */
+  100% {
+    opacity: 1;
+    top: var(--coin-fall-y, 600%);
+    left: var(--coin-fall-x, -170%);
+    transform: translate(-50%, 0);
+    max-width: 36px;
+    padding: 0;
+    background: v-bind('ANIMATION_COLORS.skill.coin');
+  }
+}
+
+/* Text inside the pill - fades out - scaled 1.8x */
+.skill-label-text {
+  font-family: 'Chess Sans', system-ui, sans-serif;
+  font-size: 20px;
+  font-weight: 800;
+  line-height: 36px;
+  color: v-bind('ANIMATION_COLORS.skill.textColor');
+  white-space: nowrap;
+  animation: skill-text-fade 800ms cubic-bezier(0, 0, 0.4, 1) forwards;
+}
+
+@keyframes skill-text-fade {
+  0% { opacity: 0; }
+  37.5% { opacity: 1; }
+  62.5% { opacity: 1; }
+  100% { opacity: 0; }
+}
+
+/* ========== BRILLIANT HIGHLIGHT ANIMATIONS ========== */
+/* Same as skill animation but with teal color and no falling - scaled 1.8x */
+
+/* Brilliant Highlight Overlay (teal color) */
+.brilliant-highlight-overlay {
+  position: absolute;
+  inset: 0;
+  background: v-bind('ANIMATION_COLORS.brilliant.overlay');
+  opacity: 0;
+  z-index: 2;
+  pointer-events: none;
+  animation: brilliant-overlay-animate 800ms cubic-bezier(0, 0, 0.4, 1) forwards;
+}
+
+@keyframes brilliant-overlay-animate {
+  0% { opacity: 0; }
+  37.5% { opacity: 0.8; }
+  62.5% { opacity: 0.8; }
+  100% { opacity: 0; }
+}
+
+/* Brilliant Icon Wrapper - contains the CcIcon - scaled 1.8x */
+.brilliant-icon-wrapper {
+  position: absolute;
+  z-index: 5;
+  pointer-events: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  filter: drop-shadow(0px 2px 0px rgba(0, 0, 0, 0.25));
+  /* 800ms animation - no falling, stays at final position */
+  animation: brilliant-icon-animate 800ms cubic-bezier(0, 0, 0.4, 1) forwards;
+}
+
+@keyframes brilliant-icon-animate {
+  /* State 1 (0ms) - centered, faded - scaled from 20px to 36px */
+  0% {
+    opacity: 0.1;
+    width: 36px;
+    height: 36px;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+  }
+  /* State 2 (300ms = 37.5%) - centered, visible, larger - scaled from 24px to 44px */
+  37.5% {
+    opacity: 1;
+    width: 44px;
+    height: 44px;
+    top: 55%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+  }
+  /* Hold State 2 (500ms = 62.5%) */
+  62.5% {
+    opacity: 1;
+    width: 44px;
+    height: 44px;
+    top: 55%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+  }
+  /* State 3: in teal coin at top right (800ms = 100%) - scaled from 16px to 29px */
+  100% {
+    opacity: 1;
+    width: 29px;
+    height: 29px;
+    top: 7px;
+    left: 90%;
+    transform: translate(-50%, -50%);
+  }
+}
+
+/* Brilliant Label Bubble (white pill → teal circle, stays on board) - scaled 1.8x */
+.brilliant-label-bubble {
+  position: absolute;
+  left: 90%;
+  top: -11px;
+  height: 36px;
+  z-index: 4;
+  pointer-events: none;
+  box-shadow: 0px 2px 0px rgba(0, 0, 0, 0.15);
+  white-space: nowrap;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 18px;
+  /* 800ms animation - no falling, stays at final position */
+  animation: brilliant-pill-animate 800ms cubic-bezier(0, 0, 0.4, 1) forwards;
+}
+
+@keyframes brilliant-pill-animate {
+  /* State 1: centered, faded (0ms) */
+  0% {
+    opacity: 0;
+    top: 50%;
+    left: 90%;
+    transform: translate(-50%, -50%);
+    max-width: 200px;
+    padding: 0 11px;
+    background: white;
+  }
+  /* State 2: at top, visible, white pill (300ms = 37.5%) */
+  37.5% {
+    opacity: 1;
+    top: -11px;
+    left: 90%;
+    transform: translate(-50%, 0);
+    max-width: 200px;
+    padding: 0 11px;
+    background: white;
+  }
+  /* Hold State 2 (500ms = 62.5%) */
+  62.5% {
+    opacity: 1;
+    top: -11px;
+    left: 90%;
+    transform: translate(-50%, 0);
+    max-width: 200px;
+    padding: 0 11px;
+    background: white;
+  }
+  /* State 3: teal circle (800ms = 100%) - scaled from 20px to 36px */
+  100% {
+    opacity: 1;
+    top: -11px;
+    left: 90%;
+    transform: translate(-50%, 0);
+    max-width: 36px;
+    padding: 0;
+    background: v-bind('ANIMATION_COLORS.brilliant.coin');
+  }
+}
+
+/* Text inside the brilliant pill - fades out - scaled 1.8x */
+.brilliant-label-text {
+  font-family: 'Chess Sans', system-ui, sans-serif;
+  font-size: 20px;
+  font-weight: 800;
+  line-height: 36px;
+  color: v-bind('ANIMATION_COLORS.brilliant.textColor');
+  white-space: nowrap;
+  animation: brilliant-text-fade 800ms cubic-bezier(0, 0, 0.4, 1) forwards;
+}
+
+@keyframes brilliant-text-fade {
+  0% { opacity: 0; }
+  37.5% { opacity: 1; }
+  62.5% { opacity: 1; }
+  100% { opacity: 0; }
 }
 </style>
