@@ -45,7 +45,7 @@ const getAnimationColor = (currentStreak) => {
   return STREAK_COLORS.high
 }
 
-// Current animation color (reactive)
+// Current animation color (reactive) - starts with green
 const animationColor = ref(STREAK_COLORS.green)
 
 // Brilliant colors (fixed)
@@ -375,9 +375,12 @@ const makeMove = (from, to) => {
 }
 
 // Trigger skill highlight animation on a square
-const triggerSkillAnimation = (square, label = 'Correct!') => {
+// If setColor is true, it will set animationColor (for cases where color wasn't pre-set)
+const triggerSkillAnimation = (square, label = 'Correct!', setColor = true) => {
   // Set animation color based on current streak (before it's incremented)
-  animationColor.value = getAnimationColor(streak.value)
+  if (setColor) {
+    animationColor.value = getAnimationColor(streak.value)
+  }
   
   skillHighlight.value = square
   skillHighlightLabel.value = label
@@ -435,6 +438,9 @@ const tryMove = (from, to) => {
     // Check if it's checkmate (move ends with #)
     const isCheckmate = currentQuestion.value.solution.toLowerCase().includes('checkmate')
     
+    // Set animation color BEFORE incrementing streak
+    animationColor.value = getAnimationColor(streak.value)
+    
     // Correct move!
     makeMove(from, to)
     streak.value++
@@ -450,8 +456,8 @@ const tryMove = (from, to) => {
       playSound('move')
     }
     
-    // Trigger animation on the target square
-    triggerSkillAnimation(to, 'Correct!')
+    // Trigger animation on the target square (color already set)
+    triggerSkillAnimation(to, 'Correct!', false)
     
     return true
   } else {
@@ -794,7 +800,7 @@ onUnmounted(() => {
             <template v-else-if="questionState === 'wrong'">
               <CcButton variant="secondary" size="large" :icon="{ name: icons.video }" @click="openVideo">Video</CcButton>
               <CcButton variant="secondary" size="large" :icon="{ name: 'circle-fill-question' }" @click="showSolution">Solution</CcButton>
-              <CcButton variant="danger" size="large" :icon="{ name: 'arrow-line-right' }" @click="handleRetry">Retry</CcButton>
+              <CcButton variant="danger" size="large" :icon="{ name: 'arrow-spin-undo' }" @click="handleRetry">Retry</CcButton>
             </template>
             <!-- Normal states (intro, hint, solution) -->
             <template v-else>
