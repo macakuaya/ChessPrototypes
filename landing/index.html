@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Chess Prototypes</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: #1a1a1a;
+      color: #ffffff;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .container {
+      max-width: 600px;
+      padding: 48px 24px;
+      text-align: center;
+    }
+
+    h1 {
+      font-size: 2.5rem;
+      font-weight: 700;
+      margin-bottom: 8px;
+    }
+
+    .subtitle {
+      color: rgba(255, 255, 255, 0.6);
+      font-size: 1.1rem;
+      margin-bottom: 48px;
+    }
+
+    .prototypes {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    .prototype-link {
+      display: block;
+      padding: 20px 24px;
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 12px;
+      color: #ffffff;
+      text-decoration: none;
+      transition: all 0.2s ease;
+    }
+
+    .prototype-link:hover {
+      background: rgba(255, 255, 255, 0.1);
+      border-color: rgba(255, 255, 255, 0.2);
+      transform: translateY(-2px);
+    }
+
+    .prototype-name {
+      font-size: 1.25rem;
+      font-weight: 600;
+      margin-bottom: 4px;
+    }
+
+    .prototype-desc {
+      font-size: 0.9rem;
+      color: rgba(255, 255, 255, 0.5);
+    }
+
+    .footer {
+      margin-top: 64px;
+      color: rgba(255, 255, 255, 0.3);
+      font-size: 0.875rem;
+    }
+
+    .footer a {
+      color: rgba(255, 255, 255, 0.5);
+      text-decoration: none;
+    }
+
+    .footer a:hover {
+      color: rgba(255, 255, 255, 0.8);
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>♟️ Chess Prototypes</h1>
+    <p class="subtitle">Experimental UI prototypes for Chess.com</p>
+
+    <div class="prototypes">
+      <a href="./skills/" class="prototype-link">
+        <div class="prototype-name">🎯 Skills</div>
+        <div class="prototype-desc">Game review with skill tracking and celebrations</div>
+      </a>
+
+      <a href="./juicy-learn/" class="prototype-link">
+        <div class="prototype-name">🎮 Juicy Learn</div>
+        <div class="prototype-desc">New learning experience prototype</div>
+      </a>
+    </div>
+
+    <footer class="footer">
+      <p>Built by <a href="https://github.com/macakuaya" target="_blank">@macakuaya</a></p>
+    </footer>
+  </div>
+</body>
+</html>
