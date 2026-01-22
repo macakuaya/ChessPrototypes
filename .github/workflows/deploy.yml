@@ -59,7 +59,7 @@ jobs:
           mkdir -p dist
           cp -r apps/skills/dist dist/skills
           cp -r apps/juicy-learn/dist dist/juicy-learn
-          cp landing/index.html dist/
+          cp -r landing/* dist/
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
