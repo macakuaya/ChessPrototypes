@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
+import { ref, computed, watch, onUnmounted } from 'vue'
 import { CcButton, CcIconButton, CcIcon } from '@chesscom/design-system'
 import CoachBubble from './components/CoachBubble.vue'
 import { playSound } from '@chess/components/sounds'
@@ -52,7 +52,18 @@ const animationColor = ref(STREAK_COLORS.green)
 const BRILLIANT_COLORS = {
   overlay: '#26C2A3',      // Teal overlay
   coin: '#26C2A3',         // Teal coin/pill
-  textColor: '#1a9a82',    // Darker teal for text
+}
+
+// Animation colors object for CSS v-bind (used in style section)
+const ANIMATION_COLORS = {
+  skill: {
+    textColor: '#81B64C',  // Green text on white pill
+  },
+  brilliant: {
+    overlay: '#26C2A3',    // Teal overlay
+    coin: '#26C2A3',       // Teal coin
+    textColor: '#1a9a82',  // Darker teal for text
+  },
 }
 
 // ============================================
@@ -563,13 +574,12 @@ const prevQuestion = () => {
 // Load first question immediately during setup (fixes HMR issues)
 loadQuestion(0)
 
-onMounted(() => {
-  // Add global event listeners for drag
-  document.addEventListener('mousemove', handleDragMove)
-  document.addEventListener('mouseup', handleDragEnd)
-  document.addEventListener('touchmove', handleDragMove, { passive: false })
-  document.addEventListener('touchend', handleDragEnd)
-})
+// Add global event listeners for drag immediately
+// (using document listeners that work even before mount)
+document.addEventListener('mousemove', handleDragMove)
+document.addEventListener('mouseup', handleDragEnd)
+document.addEventListener('touchmove', handleDragMove, { passive: false })
+document.addEventListener('touchend', handleDragEnd)
 
 onUnmounted(() => {
   // Clean up event listeners
@@ -1103,7 +1113,7 @@ body {
   display: inline-block;
   position: relative;
   border-radius: 3px;
-  overflow: hidden; /* Clip coin at board edge */
+  overflow: visible; /* Allow animation elements to overflow */
 }
 
 /* ========== EXPLOSION CIRCLE ========== */
@@ -1335,7 +1345,7 @@ body {
   font-size: 20px;
   font-weight: 800;
   line-height: 36px;
-  color: v-bind('ANIMATION_COLORS.skill.textColor');
+  color: v-bind('animationColor');
   white-space: nowrap;
   animation: skill-text-fade 800ms cubic-bezier(0, 0, 0.4, 1) forwards;
 }
