@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, watch, onMounted } from 'vue'
+import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import { CcButton, CcIconButton, CcIcon } from '@chesscom/design-system'
 import CoachBubble from './components/CoachBubble.vue'
 
@@ -78,6 +78,13 @@ const questionState = ref('intro') // 'intro', 'wrong', 'hint', 'solution'
 const streak = ref(0)
 const selectedSquare = ref(null)
 const lastMove = ref(null) // { from, to }
+
+// Drag state
+const isDragging = ref(false)
+const draggedPiece = ref(null) // { type, square }
+const draggedFrom = ref(null)
+const dragPosition = ref({ x: 0, y: 0 })
+const boardRef = ref(null)
 
 // Computed
 const currentQuestion = computed(() => lesson.questions[currentQuestionIndex.value])
@@ -258,6 +265,104 @@ const makeMove = (from, to) => {
   }
 }
 
+// Try to make a move (used by both click and drag)
+const tryMove = (from, to) => {
+  if (questionState.value === 'solution') return false
+  
+  const movingPiece = getPieceOnSquare(from)
+  if (!movingPiece || !movingPiece.type.startsWith('w')) return false
+  
+  // Check if this is the correct move
+  const correct = currentQuestion.value.correctMove
+  if (from === correct.from && to === correct.to) {
+    // Correct move!
+    makeMove(from, to)
+    streak.value++
+    questionState.value = 'solution'
+    lastMove.value = { from, to }
+    return true
+  } else {
+    // Wrong move - reset streak
+    streak.value = 0
+    questionState.value = 'wrong'
+    return false
+  }
+}
+
+// ============================================
+// DRAG & DROP
+// ============================================
+const handleDragStart = (event, square) => {
+  if (questionState.value === 'solution') return
+  
+  const piece = getPieceOnSquare(square)
+  if (!piece || !piece.type.startsWith('w')) return
+  
+  // Prevent default drag behavior
+  event.preventDefault()
+  
+  isDragging.value = true
+  draggedPiece.value = piece
+  draggedFrom.value = square
+  selectedSquare.value = square
+  
+  // Get initial position
+  const clientX = event.touches ? event.touches[0].clientX : event.clientX
+  const clientY = event.touches ? event.touches[0].clientY : event.clientY
+  dragPosition.value = { x: clientX, y: clientY }
+}
+
+const handleDragMove = (event) => {
+  if (!isDragging.value) return
+  
+  event.preventDefault()
+  
+  const clientX = event.touches ? event.touches[0].clientX : event.clientX
+  const clientY = event.touches ? event.touches[0].clientY : event.clientY
+  dragPosition.value = { x: clientX, y: clientY }
+}
+
+const handleDragEnd = (event) => {
+  if (!isDragging.value) return
+  
+  const clientX = event.changedTouches ? event.changedTouches[0].clientX : event.clientX
+  const clientY = event.changedTouches ? event.changedTouches[0].clientY : event.clientY
+  
+  // Find which square we dropped on
+  const targetSquare = getSquareFromPosition(clientX, clientY)
+  
+  if (targetSquare && targetSquare !== draggedFrom.value) {
+    tryMove(draggedFrom.value, targetSquare)
+  }
+  
+  // Reset drag state
+  isDragging.value = false
+  draggedPiece.value = null
+  draggedFrom.value = null
+  selectedSquare.value = null
+}
+
+const getSquareFromPosition = (x, y) => {
+  if (!boardRef.value) return null
+  
+  const rect = boardRef.value.getBoundingClientRect()
+  const squareSize = rect.width / 8
+  
+  const col = Math.floor((x - rect.left) / squareSize)
+  const row = Math.floor((y - rect.top) / squareSize)
+  
+  if (col < 0 || col > 7 || row < 0 || row > 7) return null
+  
+  const file = files[col]
+  const rank = 8 - row
+  return `${file}${rank}`
+}
+
+// Check if piece is being dragged (to hide it from original square)
+const isPieceDragged = (square) => {
+  return isDragging.value && draggedFrom.value === square
+}
+
 // ============================================
 // ACTIONS
 // ============================================
@@ -265,6 +370,10 @@ const handleHint = () => {
   if (questionState.value === 'solution') return
   streak.value = 0 // Reset streak on hint
   questionState.value = 'hint'
+}
+
+const openVideo = () => {
+  window.open('https://www.youtube.com/watch?v=dQw4w9WgXcQ', '_blank')
 }
 
 const nextQuestion = () => {
@@ -286,6 +395,20 @@ const prevQuestion = () => {
 // ============================================
 onMounted(() => {
   loadQuestion(0)
+  
+  // Add global event listeners for drag
+  document.addEventListener('mousemove', handleDragMove)
+  document.addEventListener('mouseup', handleDragEnd)
+  document.addEventListener('touchmove', handleDragMove, { passive: false })
+  document.addEventListener('touchend', handleDragEnd)
+})
+
+onUnmounted(() => {
+  // Clean up event listeners
+  document.removeEventListener('mousemove', handleDragMove)
+  document.removeEventListener('mouseup', handleDragEnd)
+  document.removeEventListener('touchmove', handleDragMove)
+  document.removeEventListener('touchend', handleDragEnd)
 })
 </script>
 
@@ -294,7 +417,7 @@ onMounted(() => {
     <div class="layout">
       <!-- Left: Chessboard -->
       <div class="board-section">
-        <div class="chessboard">
+        <div class="chessboard" ref="boardRef">
           <div 
             v-for="square in squares" 
             :key="square"
@@ -308,11 +431,14 @@ onMounted(() => {
           >
             <!-- Piece -->
             <img 
-              v-if="getPieceOnSquare(square)" 
+              v-if="getPieceOnSquare(square) && !isPieceDragged(square)" 
               class="piece"
+              :class="{ 'draggable': getPieceOnSquare(square)?.type.startsWith('w') }"
               :src="getPieceImage(getPieceOnSquare(square))"
               :alt="getPieceOnSquare(square).type"
               draggable="false"
+              @mousedown="handleDragStart($event, square)"
+              @touchstart="handleDragStart($event, square)"
             />
             <!-- File label (bottom row) -->
             <span v-if="square[1] === '1'" class="coord file-coord">{{ square[0] }}</span>
@@ -320,6 +446,18 @@ onMounted(() => {
             <span v-if="square[0] === 'a'" class="coord rank-coord">{{ square[1] }}</span>
           </div>
         </div>
+        
+        <!-- Dragged piece (follows cursor) -->
+        <img 
+          v-if="isDragging && draggedPiece"
+          class="dragged-piece"
+          :src="getPieceImage(draggedPiece)"
+          :style="{
+            left: dragPosition.x + 'px',
+            top: dragPosition.y + 'px'
+          }"
+        />
+        
         <!-- Settings icon positioned at top-right of board -->
         <div class="board-settings">
           <CcIcon :name="icons.settings" :size="20" />
@@ -383,11 +521,12 @@ onMounted(() => {
         <!-- Footer -->
         <footer class="panel-footer">
           <div class="action-buttons">
+            <CcButton variant="secondary" size="large" :icon="{ name: icons.video }" @click="openVideo">Video</CcButton>
             <template v-if="questionState === 'solution'">
               <CcButton 
                 variant="primary" 
                 size="large" 
-                :icon="{ name: icons.next }"
+                :icon="{ name: 'arrow-line-right' }"
                 @click="nextQuestion"
                 :disabled="currentQuestionIndex >= totalChallenges - 1"
               >
@@ -395,7 +534,6 @@ onMounted(() => {
               </CcButton>
             </template>
             <template v-else>
-              <CcButton variant="secondary" size="large" :icon="{ name: icons.video }">Video</CcButton>
               <CcButton variant="secondary" size="large" :icon="{ name: icons.hint }" @click="handleHint">Hint</CcButton>
             </template>
           </div>
@@ -481,8 +619,25 @@ body {
   height: 100%;
   object-fit: contain;
   z-index: 1;
-  cursor: pointer;
   user-select: none;
+}
+
+.piece.draggable {
+  cursor: grab;
+}
+
+.piece.draggable:active {
+  cursor: grabbing;
+}
+
+.dragged-piece {
+  position: fixed;
+  width: 8.5rem;
+  height: 8.5rem;
+  pointer-events: none;
+  z-index: 1000;
+  transform: translate(-50%, -50%);
+  filter: drop-shadow(0 4px 8px rgba(0, 0, 0, 0.3));
 }
 
 .coord {
