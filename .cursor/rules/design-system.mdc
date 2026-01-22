@@ -1,0 +1,52 @@
+---
+description: Chess.com Design System guidelines for AI assistance
+globs: ["**/*.vue", "**/*.ts", "**/*.js", "**/*.tsx", "**/*.jsx", "**/*.css", "**/*.scss"]
+---
+
+# Chess.com Design System Rules
+
+When working on Chess.com UI code, follow these guidelines:
+
+## Always Use the MCP First
+
+Before writing UI code, **always query the Chess.com Design System MCP**:
+
+1. **Components**: Use `search_components` or `get_component_api` to find the right component
+2. **Tokens**: Use `search_tokens` or `get_token_value` for colors, spacing, typography
+3. **Icons**: Use `search_glyphs` for monochrome icons, `search_color_icons` for colorful icons
+4. **Guidelines**: Use `get_do_dont` for best practices on any component
+
+## Component Usage
+
+- **Always use `cc-` prefixed components** from `@chesscom/design-system` when available
+- Import components: `import { CcButton, CcIcon } from '@chesscom/design-system'`
+- Import styles in your app entry:
+  ```js
+  import '@chesscom/design-system/dist/variables.css'
+  import '@chesscom/design-system/dist/cc-utils.css'
+  import '@chesscom/design-system/dist/style.css'
+  ```
+
+## Design Tokens
+
+- **Never hardcode colors** - use CSS variables like `var(--color-text-primary)`
+- **Never hardcode spacing** - use spacing tokens like `var(--spacing-md)`
+- **Never hardcode typography** - use text style classes or tokens
+- Query `search_tokens` to find the right token for your use case
+
+## Icons
+
+- **Glyphs** (24x24 monochrome): Use `<CcIcon name="icon-name" :size="24" />`
+- **Color icons** (illustrations): Use image paths from `search_color_icons`
+- Always search the MCP before assuming an icon exists
+
+## Cross-Platform Considerations
+
+The design system supports Web (Vue), iOS (SwiftUI), and Android (Compose). When the MCP returns cross-platform code, use the appropriate variant for your target platform.
+
+## Example Workflow
+
+1. User asks: "Add a settings button"
+2. Query: `search_glyphs("settings")` → finds `utility-cogwheel`
+3. Query: `get_component_api("cc-icon-button")` → get props
+4. Implement: `<CcIconButton icon="utility-cogwheel" variant="basic" />`
