@@ -23,19 +23,36 @@ const icons = {
 }
 
 // ============================================
-// ANIMATION COLORS (configurable)
+// ANIMATION COLORS (dynamic based on streak)
 // ============================================
-const ANIMATION_COLORS = {
-  skill: {
-    overlay: '#E3AA24',      // Gold overlay
-    coin: '#E3AA24',         // Gold coin/pill
-    textColor: '#cf8d1b',    // Darker gold for text
-  },
-  brilliant: {
-    overlay: '#26C2A3',      // Teal overlay
-    coin: '#26C2A3',         // Teal coin/pill
-    textColor: '#1a9a82',    // Darker teal for text
-  },
+// Streak color values (matching CSS variables)
+const STREAK_COLORS = {
+  green: '#81B64C',      // --color-green-400 / text-win (first point)
+  lowest: '#E3AA24',     // --color-streak-lowest (gold, 2 correct)
+  low: '#E89B3C',        // --color-streak-low (light orange, 3-4 correct)
+  medium: '#E07A3C',     // --color-streak-medium (orange, 5-6 correct)
+  high: '#DC4C3C',       // --color-streak-high (red, 7+ correct)
+}
+
+// Get animation color based on streak (called BEFORE streak is incremented)
+const getAnimationColor = (currentStreak) => {
+  // After this move, streak will be currentStreak + 1
+  const newStreak = currentStreak + 1
+  if (newStreak <= 1) return STREAK_COLORS.green
+  if (newStreak === 2) return STREAK_COLORS.lowest
+  if (newStreak <= 4) return STREAK_COLORS.low
+  if (newStreak <= 6) return STREAK_COLORS.medium
+  return STREAK_COLORS.high
+}
+
+// Current animation color (reactive)
+const animationColor = ref(STREAK_COLORS.green)
+
+// Brilliant colors (fixed)
+const BRILLIANT_COLORS = {
+  overlay: '#26C2A3',      // Teal overlay
+  coin: '#26C2A3',         // Teal coin/pill
+  textColor: '#1a9a82',    // Darker teal for text
 }
 
 // ============================================
@@ -111,6 +128,7 @@ const brilliantHighlight = ref(null)  // Square to highlight with brilliant anim
 
 // Refs for animation target positioning
 const progressBarRef = ref(null)      // Reference to progress bar element
+const explosionTop = ref(168)         // Y position for explosion, updated dynamically
 
 // Computed
 const currentQuestion = computed(() => lesson.questions[currentQuestionIndex.value])
@@ -347,8 +365,22 @@ const makeMove = (from, to) => {
 
 // Trigger skill highlight animation on a square
 const triggerSkillAnimation = (square, label = 'Correct!') => {
+  // Set animation color based on current streak (before it's incremented)
+  animationColor.value = getAnimationColor(streak.value)
+  
   skillHighlight.value = square
   skillHighlightLabel.value = label
+  
+  // Calculate explosion position based on progress bar
+  if (progressBarRef.value) {
+    const barRect = progressBarRef.value.getBoundingClientRect()
+    const panelContent = progressBarRef.value.closest('.panel-content')
+    if (panelContent) {
+      const panelRect = panelContent.getBoundingClientRect()
+      // Center of progress bar relative to panel-content
+      explosionTop.value = (barRect.top + barRect.height / 2) - panelRect.top
+    }
+  }
   
   // After 800ms (morph animation) + 50ms pause + 500ms (fall), show explosion
   setTimeout(() => {
@@ -528,9 +560,10 @@ const prevQuestion = () => {
 // ============================================
 // INITIALIZATION
 // ============================================
+// Load first question immediately during setup (fixes HMR issues)
+loadQuestion(0)
+
 onMounted(() => {
-  loadQuestion(0)
-  
   // Add global event listeners for drag
   document.addEventListener('mousemove', handleDragMove)
   document.addEventListener('mouseup', handleDragEnd)
@@ -571,16 +604,12 @@ onUnmounted(() => {
                 class="skill-highlight-overlay"
               ></div>
               
-              <!-- Skill Star Icon (separate from overlay to avoid opacity inheritance) -->
-              <svg 
+              <!-- Skill +1 Icon (same animation as original star) -->
+              <div 
                 v-if="hasSkillHighlight(square)" 
-                class="skill-star-icon" 
+                class="skill-plus-icon" 
                 :style="getSkillHighlightStyle"
-                viewBox="0 0 20 20" 
-                fill="none"
-              >
-                <path d="M6.56624 15.6425C6.14456 15.9236 5.64255 15.5622 5.78311 15.0803L6.82729 11.1244L3.6546 8.55415C3.23291 8.21278 3.57427 7.65053 3.9558 7.61037L8.05219 7.38949L9.51805 3.57423C9.59837 3.37342 9.79917 3.23286 10.0201 3.23286C10.2209 3.23286 10.4217 3.35334 10.502 3.57423L11.9678 7.38949L16.0442 7.61037C16.5662 7.63045 16.6867 8.27302 16.3454 8.53407L13.1727 11.1244L14.2168 15.0803C14.3574 15.5823 13.7751 15.8634 13.4337 15.6425L9.99998 13.4337L6.56624 15.6425Z" fill="white"/>
-              </svg>
+              >+1</div>
               
               <!-- Skill Label Bubble (transforms from white pill to gold circle) -->
               <div 
@@ -672,6 +701,11 @@ onUnmounted(() => {
 
         <!-- Content -->
         <div class="panel-content">
+          <!-- Explosion Circle (appears at left edge as semicircle) -->
+          <div 
+            v-if="showExplosion" 
+            class="explosion-circle"
+          ></div>
           <!-- Coach -->
           <CoachBubble 
             :message="coachMessage"
@@ -691,11 +725,6 @@ onUnmounted(() => {
             <div class="progress-row">
               <div class="progress-bar" ref="progressBarRef">
                 <div class="progress-fill" :style="{ width: progressPercent + '%', background: streakColor }"></div>
-                <!-- Explosion Circle (appears at start of progress bar) -->
-                <div 
-                  v-if="showExplosion" 
-                  class="explosion-circle"
-                ></div>
               </div>
               <div class="queen-badge">
                 <img :src="`${base}icons/misc/Diamond.svg`" alt="" class="queen-diamond" />
@@ -799,8 +828,8 @@ body {
   display: grid;
   grid-template-columns: repeat(8, 1fr);
   grid-template-rows: repeat(8, 1fr);
-  border-radius: 0.3rem;
-  overflow: visible; /* Allow animations within board, wrapper clips at edge */
+  border-radius: 3px;
+  overflow: hidden; /* Clip corners */
 }
 
 .square {
@@ -933,7 +962,8 @@ body {
   display: flex;
   flex-direction: column;
   gap: 1.6rem;
-  overflow: visible; /* Allow explosion animation to overflow */
+  position: relative; /* For explosion positioning */
+  overflow: hidden; /* Clip left half of explosion to create semicircle */
 }
 
 /* Progress Section */
@@ -1072,24 +1102,23 @@ body {
 .board-wrapper {
   display: inline-block;
   position: relative;
-  /* Clip coin when it exits the RIGHT side of the board */
-  /* Allow overflow on top (for label bubble popup) and bottom */
-  clip-path: inset(-50px 0 -50px -50px); /* top right bottom left - clips right edge only */
+  border-radius: 3px;
+  overflow: hidden; /* Clip coin at board edge */
 }
 
 /* ========== EXPLOSION CIRCLE ========== */
-/* Positioned at start of progress bar in sidebar */
+/* Positioned at left edge of panel-content as semicircle */
 .explosion-circle {
   position: absolute;
-  background: v-bind('ANIMATION_COLORS.skill.overlay');
+  background: v-bind('animationColor');
   border-radius: 50%;
-  /* Position at left edge of progress bar */
+  /* Position at left edge, dynamically aligned with progress bar center */
   left: 0;
-  top: 50%;
+  top: v-bind("explosionTop + 'px'");
   transform: translate(-50%, -50%);
   z-index: 10;
   pointer-events: none;
-  /* Animation: grow from 36px to 200px, fade out */
+  /* Animation: grow from 36px to 300px, fade out */
   animation: explosion-expand 500ms cubic-bezier(0, 0, 0.4, 1) forwards;
 }
 
@@ -1100,8 +1129,8 @@ body {
     opacity: 1;
   }
   100% {
-    width: 200px;
-    height: 200px;
+    width: 300px;
+    height: 300px;
     opacity: 0;
   }
 }
@@ -1113,7 +1142,7 @@ body {
 .skill-highlight-overlay {
   position: absolute;
   inset: 0;
-  background: v-bind('ANIMATION_COLORS.skill.overlay');
+  background: v-bind('animationColor');
   opacity: 0;
   z-index: 2;
   pointer-events: none;
@@ -1138,31 +1167,39 @@ body {
   }
 }
 
-/* Skill Star Icon - scaled 1.8x */
-.skill-star-icon {
+/* Skill +1 Icon - same animation as original star, scaled 1.8x */
+.skill-plus-icon {
   position: absolute;
   z-index: 5;
   pointer-events: none;
   filter: drop-shadow(0px 2px 0px rgba(0, 0, 0, 0.25));
+  font-family: 'Chess Sans', system-ui, sans-serif;
+  font-weight: 800;
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   /* Total: 800ms morph + 50ms pause + 500ms fall = 1350ms */
-  animation: skill-star-animate 1350ms cubic-bezier(0.8, 0, 1, 1) forwards;
+  animation: skill-plus-animate 1350ms cubic-bezier(0.8, 0, 1, 1) forwards;
 }
 
-@keyframes skill-star-animate {
-  /* State 1 (0ms) - scaled from 20px to 36px */
+@keyframes skill-plus-animate {
+  /* State 1 (0ms) - centered, faded */
   0% {
     opacity: 0.1;
     width: 36px;
     height: 36px;
+    font-size: 24px;
     top: 50%;
     left: 50%;
     transform: translate(-50%, -50%) rotate(0deg);
   }
-  /* State 2 (300ms = 22.2%) - scaled from 24px to 44px */
+  /* State 2 (300ms = 22.2%) - visible, larger */
   22.2% {
     opacity: 1;
     width: 44px;
     height: 44px;
+    font-size: 28px;
     top: 55%;
     left: 50%;
     transform: translate(-50%, -50%) rotate(0deg);
@@ -1172,15 +1209,17 @@ body {
     opacity: 1;
     width: 44px;
     height: 44px;
+    font-size: 28px;
     top: 55%;
     left: 50%;
     transform: translate(-50%, -50%) rotate(0deg);
   }
-  /* State 3: in gold pill (800ms = 59.3%) - scaled from 16px to 29px */
+  /* State 3: shrink into coin position (800ms = 59.3%) */
   59.3% {
     opacity: 1;
     width: 29px;
     height: 29px;
+    font-size: 16px;
     top: 7px;
     left: 90%;
     transform: translate(-50%, -50%) rotate(0deg);
@@ -1190,6 +1229,7 @@ body {
     opacity: 1;
     width: 29px;
     height: 29px;
+    font-size: 16px;
     top: 7px;
     left: 90%;
     transform: translate(-50%, -50%) rotate(0deg);
@@ -1199,13 +1239,14 @@ body {
     opacity: 1;
     width: 29px;
     height: 29px;
+    font-size: 16px;
     top: var(--coin-fall-y, 600%);
     left: var(--coin-fall-x, -170%);
     transform: translate(-50%, -50%) rotate(-90deg);
   }
 }
 
-/* Skill Label Bubble (transforms from white pill to gold circle, then falls) - scaled 1.8x */
+/* Skill Label Bubble (transforms from white pill to colored circle, then falls) - scaled 1.8x */
 .skill-label-bubble {
   position: absolute;
   left: 90%;
@@ -1220,6 +1261,7 @@ body {
   align-items: center;
   justify-content: center;
   border-radius: 18px;
+  --coin-color: v-bind('animationColor');
   /* Total: 800ms morph + 50ms pause + 500ms fall = 1350ms */
   animation: skill-pill-animate 1350ms cubic-bezier(0.8, 0, 1, 1) forwards;
 }
@@ -1255,7 +1297,7 @@ body {
     padding: 0 11px;
     background: white;
   }
-  /* State 3: gold circle (800ms = 59.3%) - scaled from 20px to 36px */
+  /* State 3: colored circle (800ms = 59.3%) */
   59.3% {
     opacity: 1;
     top: -11px;
@@ -1263,7 +1305,7 @@ body {
     transform: translate(-50%, 0);
     max-width: 36px;
     padding: 0;
-    background: v-bind('ANIMATION_COLORS.skill.coin');
+    background: var(--coin-color);
   }
   /* Hold State 3 - pause before fall (850ms = 63%) */
   63% {
@@ -1273,7 +1315,7 @@ body {
     transform: translate(-50%, 0);
     max-width: 36px;
     padding: 0;
-    background: v-bind('ANIMATION_COLORS.skill.coin');
+    background: var(--coin-color);
   }
   /* State 4: fall to target position (1350ms = 100%) */
   100% {
@@ -1283,7 +1325,7 @@ body {
     transform: translate(-50%, 0);
     max-width: 36px;
     padding: 0;
-    background: v-bind('ANIMATION_COLORS.skill.coin');
+    background: var(--coin-color);
   }
 }
 
