@@ -300,9 +300,17 @@ const getPieceImage = (piece) => {
 // Check if square is selected
 const isSelected = (square) => selectedSquare.value === square
 
-// Check if square is part of last move
+// Check if square is part of last move (for correct moves)
 const isLastMove = (square) => {
   if (!lastMove.value) return false
+  if (questionState.value === 'wrong') return false // Don't show yellow for wrong moves
+  return lastMove.value.from === square || lastMove.value.to === square
+}
+
+// Check if square is part of a wrong move (for red highlight)
+const isWrongMove = (square) => {
+  if (!lastMove.value) return false
+  if (questionState.value !== 'wrong') return false
   return lastMove.value.from === square || lastMove.value.to === square
 }
 
@@ -636,7 +644,7 @@ onUnmounted(() => {
               class="square"
               :class="[
                 isLightSquare(square) ? 'light' : 'dark',
-                { 'selected': isSelected(square), 'last-move': isLastMove(square) }
+                { 'selected': isSelected(square), 'last-move': isLastMove(square), 'wrong-move': isWrongMove(square) }
               ]"
               :data-square="square"
               @click="handleSquareClick(square)"
@@ -896,8 +904,25 @@ body {
 .square.selected.light { background: #f6f669; }
 .square.selected.dark { background: #bbcb44; }
 
-.square.last-move.light { background: #f6f669; }
-.square.last-move.dark { background: #bbcb44; }
+/* Success move highlight - green-500 (#45753C) at 50% opacity overlay */
+.square.last-move::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: rgba(69, 117, 60, 0.5); /* green-500 at 50% */
+  z-index: 1;
+  pointer-events: none;
+}
+
+/* Wrong move highlight - red-200 (#FF6352) at 50% opacity overlay */
+.square.wrong-move::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: rgba(255, 99, 82, 0.5); /* red-200 at 50% */
+  z-index: 1;
+  pointer-events: none;
+}
 
 .piece {
   width: 100%;
