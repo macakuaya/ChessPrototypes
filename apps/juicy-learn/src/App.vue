@@ -96,9 +96,9 @@ const getPieceOnSquare = (square) => {
   return pieces.value.find(p => p.square === square)
 }
 
-// Get piece image path
+// Get piece image path from Chess.com CDN (neo theme, 300px for crisp rendering)
 const getPieceImage = (piece) => {
-  return `${base}pieces/${piece.type}.png`
+  return `https://www.chess.com/chess-themes/pieces/neo/300/${piece.type}.png`
 }
 </script>
 
