@@ -203,13 +203,13 @@ const tipSrc = `${base}icons/misc/bubble-tip.svg`
   color: #312e2b;
 }
 
-/* text-medium-bold: 14px / 16px / 600 */
+/* paragraph-medium-bold: 14px / 20px / 600 */
 .coach-message {
   margin: 0;
   font-family: var(--font-family-system, -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, Helvetica, Arial, sans-serif);
   font-size: 14px;
   font-weight: 600;
-  line-height: 16px;
+  line-height: 20px;
   color: #312e2b;
 }
 
