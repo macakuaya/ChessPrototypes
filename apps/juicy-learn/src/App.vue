@@ -2,6 +2,7 @@
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import { CcButton, CcIconButton, CcIcon } from '@chesscom/design-system'
 import CoachBubble from './components/CoachBubble.vue'
+import { playSound } from '@chess/components/sounds'
 
 // Icon names from Figma design
 const icons = {
@@ -90,7 +91,11 @@ const boardRef = ref(null)
 const currentQuestion = computed(() => lesson.questions[currentQuestionIndex.value])
 const totalChallenges = computed(() => lesson.questions.length)
 const currentChallenge = computed(() => currentQuestionIndex.value + 1)
-const progressPercent = computed(() => (currentQuestionIndex.value / totalChallenges.value) * 100)
+// Progress includes current question if solved
+const progressPercent = computed(() => {
+  const completed = currentQuestionIndex.value + (questionState.value === 'solution' ? 1 : 0)
+  return (completed / totalChallenges.value) * 100
+})
 const lessonName = computed(() => lesson.name)
 
 // Coach message based on state
@@ -275,11 +280,26 @@ const tryMove = (from, to) => {
   // Check if this is the correct move
   const correct = currentQuestion.value.correctMove
   if (from === correct.from && to === correct.to) {
+    // Check if it's a capture (piece on target square)
+    const isCapture = getPieceOnSquare(to) !== undefined
+    // Check if it's checkmate (move ends with #)
+    const isCheckmate = currentQuestion.value.solution.toLowerCase().includes('checkmate')
+    
     // Correct move!
     makeMove(from, to)
     streak.value++
     questionState.value = 'solution'
     lastMove.value = { from, to }
+    
+    // Play appropriate sound
+    if (isCheckmate) {
+      playSound('check')
+    } else if (isCapture) {
+      playSound('capture')
+    } else {
+      playSound('move')
+    }
+    
     return true
   } else {
     // Wrong move - reset streak
@@ -381,6 +401,11 @@ const nextQuestion = () => {
     currentQuestionIndex.value++
     loadQuestion(currentQuestionIndex.value)
   }
+}
+
+const handleComplete = () => {
+  // TODO: Navigate to next lesson (to be implemented)
+  console.log('Lesson complete! Moving to next lesson...')
 }
 
 const prevQuestion = () => {
@@ -521,20 +546,34 @@ onUnmounted(() => {
         <!-- Footer -->
         <footer class="panel-footer">
           <div class="action-buttons">
-            <CcButton variant="secondary" size="large" :icon="{ name: icons.video }" @click="openVideo">Video</CcButton>
-            <template v-if="questionState === 'solution'">
+            <!-- Complete state: only Complete button -->
+            <template v-if="questionState === 'solution' && currentQuestionIndex >= totalChallenges - 1">
               <CcButton 
                 variant="primary" 
                 size="large" 
                 :icon="{ name: 'arrow-line-right' }"
-                @click="nextQuestion"
-                :disabled="currentQuestionIndex >= totalChallenges - 1"
+                @click="handleComplete"
+                class="complete-button"
               >
-                {{ currentQuestionIndex >= totalChallenges - 1 ? 'Complete!' : 'Next' }}
+                Complete
               </CcButton>
             </template>
+            <!-- Normal states -->
             <template v-else>
-              <CcButton variant="secondary" size="large" :icon="{ name: icons.hint }" @click="handleHint">Hint</CcButton>
+              <CcButton variant="secondary" size="large" :icon="{ name: icons.video }" @click="openVideo">Video</CcButton>
+              <template v-if="questionState === 'solution'">
+                <CcButton 
+                  variant="primary" 
+                  size="large" 
+                  :icon="{ name: 'arrow-line-right' }"
+                  @click="nextQuestion"
+                >
+                  Next
+                </CcButton>
+              </template>
+              <template v-else>
+                <CcButton variant="secondary" size="large" :icon="{ name: icons.hint }" @click="handleHint">Hint</CcButton>
+              </template>
             </template>
           </div>
           <div class="toolbar">
@@ -834,6 +873,10 @@ body {
 .action-buttons > :deep(button) {
   flex: 1;
   max-height: 4.8rem;
+}
+
+.action-buttons .complete-button :deep(button) {
+  width: 100%;
 }
 
 .toolbar {
