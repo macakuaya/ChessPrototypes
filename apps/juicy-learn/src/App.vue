@@ -135,6 +135,9 @@ const boardRef = ref(null)
 const skillHighlight = ref(null)      // Square to highlight with skill animation (e.g., 'd6')
 const skillHighlightLabel = ref(null) // Label text for skill highlight (e.g., 'Correct!')
 const showExplosion = ref(false)      // Show the explosion circle at progress bar
+
+// Piece movement animation state
+const movingPiece = ref(null)  // { type, fromSquare, toSquare, startPos, endPos }
 const brilliantHighlight = ref(null)  // Square to highlight with brilliant animation
 
 // Refs for animation target positioning
@@ -371,6 +374,103 @@ const handleSquareClick = (square) => {
   selectedSquare.value = null
 }
 
+// Convert square notation to coordinates
+const squareToCoords = (square) => {
+  const file = square.charCodeAt(0) - 'a'.charCodeAt(0) // 0-7 for a-h
+  const rank = parseInt(square[1]) - 1 // 0-7 for 1-8
+  return { file, rank }
+}
+
+// Check if path is clear between two squares (for sliding pieces)
+const isPathClear = (fromFile, fromRank, toFile, toRank) => {
+  const dFile = Math.sign(toFile - fromFile)
+  const dRank = Math.sign(toRank - fromRank)
+  
+  let file = fromFile + dFile
+  let rank = fromRank + dRank
+  
+  while (file !== toFile || rank !== toRank) {
+    const square = String.fromCharCode('a'.charCodeAt(0) + file) + (rank + 1)
+    if (getPieceOnSquare(square)) return false
+    file += dFile
+    rank += dRank
+  }
+  
+  return true
+}
+
+// Check if a move is legal according to chess rules
+const isLegalMove = (from, to) => {
+  const piece = getPieceOnSquare(from)
+  if (!piece) return false
+  
+  const fromCoords = squareToCoords(from)
+  const toCoords = squareToCoords(to)
+  const dFile = toCoords.file - fromCoords.file
+  const dRank = toCoords.rank - fromCoords.rank
+  const absDFile = Math.abs(dFile)
+  const absDRank = Math.abs(dRank)
+  
+  // Can't capture your own piece
+  const targetPiece = getPieceOnSquare(to)
+  if (targetPiece) {
+    const isWhite = piece.type.startsWith('w')
+    const targetIsWhite = targetPiece.type.startsWith('w')
+    if (isWhite === targetIsWhite) return false
+  }
+  
+  // Get piece type (second character: k, q, r, b, n, p)
+  const pieceType = piece.type[1]
+  const isWhite = piece.type.startsWith('w')
+  
+  switch (pieceType) {
+    case 'p': { // Pawn
+      const direction = isWhite ? 1 : -1
+      const startRank = isWhite ? 1 : 6
+      
+      // Normal move forward (no capture)
+      if (dFile === 0 && dRank === direction && !targetPiece) {
+        return true
+      }
+      // Double move from starting position
+      if (dFile === 0 && dRank === 2 * direction && fromCoords.rank === startRank && !targetPiece) {
+        // Check path is clear
+        const midSquare = String.fromCharCode('a'.charCodeAt(0) + fromCoords.file) + (fromCoords.rank + direction + 1)
+        if (!getPieceOnSquare(midSquare)) return true
+      }
+      // Capture diagonally
+      if (absDFile === 1 && dRank === direction && targetPiece) {
+        return true
+      }
+      return false
+    }
+    case 'n': // Knight
+      return (absDFile === 2 && absDRank === 1) || (absDFile === 1 && absDRank === 2)
+    
+    case 'b': // Bishop
+      if (absDFile !== absDRank) return false
+      return isPathClear(fromCoords.file, fromCoords.rank, toCoords.file, toCoords.rank)
+    
+    case 'r': // Rook
+      if (dFile !== 0 && dRank !== 0) return false
+      return isPathClear(fromCoords.file, fromCoords.rank, toCoords.file, toCoords.rank)
+    
+    case 'q': // Queen
+      if (dFile !== 0 && dRank !== 0 && absDFile !== absDRank) return false
+      return isPathClear(fromCoords.file, fromCoords.rank, toCoords.file, toCoords.rank)
+    
+    case 'k': // King
+      // Normal king move
+      if (absDFile <= 1 && absDRank <= 1) return true
+      // Castling (simplified - just check distance)
+      if (absDFile === 2 && dRank === 0) return true
+      return false
+    
+    default:
+      return false
+  }
+}
+
 // Execute a move on the board
 const makeMove = (from, to) => {
   // Remove any piece on target square (capture)
@@ -437,6 +537,11 @@ const tryMove = (from, to) => {
   
   const movingPiece = getPieceOnSquare(from)
   if (!movingPiece || !movingPiece.type.startsWith('w')) return false
+  
+  // Check if move is legal according to chess rules
+  if (!isLegalMove(from, to)) {
+    return false // Illegal move - don't allow it
+  }
   
   // Check if this is the correct move
   const correct = currentQuestion.value.correctMove
