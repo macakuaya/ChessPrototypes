@@ -15,7 +15,9 @@ export default defineConfig({
   resolve: {
     alias: {
       '@': fileURLToPath(new URL('./src', import.meta.url)),
-      '@chess/components': fileURLToPath(new URL('../../shared/chess-components', import.meta.url))
+      '@chess/components': fileURLToPath(new URL('../../shared/chess-components', import.meta.url)),
+      // Ensure shared components resolve design-system from this app's node_modules
+      '@chesscom/design-system': fileURLToPath(new URL('./node_modules/@chesscom/design-system', import.meta.url))
     },
   },
 })
