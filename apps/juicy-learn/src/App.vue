@@ -207,8 +207,9 @@ const moveNotation = computed(() => {
 
 // Streak color logic
 // 0-1 = green (text-win), 2 = lowest, 3-4 = low, 5-6 = medium, 7+ = high
+// Streak color uses displayedStreak (synced with explosion animation)
 const streakColor = computed(() => {
-  const s = streak.value
+  const s = displayedStreak.value
   if (s <= 1) return 'var(--color-text-win, #81b64c)'
   if (s === 2) return 'var(--color-streak-lowest)'
   if (s <= 4) return 'var(--color-streak-low)'
@@ -951,7 +952,7 @@ onUnmounted(() => {
             </div>
             <div class="streak" :style="{ color: streakColor }">
               <CcIcon name="element-fire-blank" :size="16" class="fire-icon" />
-              <span>{{ streak }}</span>
+              <span>{{ displayedStreak }}</span>
             </div>
           </div>
         </div>
