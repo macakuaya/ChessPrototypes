@@ -148,11 +148,14 @@ const explosionTop = ref(168)         // Y position for explosion, updated dynam
 const currentQuestion = computed(() => lesson.questions[currentQuestionIndex.value])
 const totalChallenges = computed(() => lesson.questions.length)
 const currentChallenge = computed(() => currentQuestionIndex.value + 1)
-// Progress includes current question if solved
-const progressPercent = computed(() => {
+// Actual progress (internal)
+const actualProgress = computed(() => {
   const completed = currentQuestionIndex.value + (questionState.value === 'solution' ? 1 : 0)
   return (completed / totalChallenges.value) * 100
 })
+// Displayed progress (synced with explosion animation at 1350ms)
+const displayedProgress = ref(0)
+const displayedStreak = ref(0)
 const lessonName = computed(() => lesson.name)
 
 // Coach message based on state
@@ -167,10 +170,55 @@ const coachMessage = computed(() => {
   }
 })
 
+// Coach bubble state based on question state
+const coachState = computed(() => {
+  switch (questionState.value) {
+    case 'intro':
+    case 'hint':
+      // Determine which side to move from FEN (w = white, b = black)
+      const fen = currentQuestion.value.fen
+      const parts = fen.split(' ')
+      const sideToMove = parts[1] || 'w' // Default to white if not specified
+      return sideToMove === 'w' ? 'white-to-move' : 'black-to-move'
+    case 'wrong':
+      return 'incorrect'
+    case 'solution':
+      return 'correct'
+    default:
+      return 'white-to-move'
+  }
+})
+
+// Move notation for correct/incorrect states
+const moveNotation = computed(() => {
+  if (!lastMove.value) return ''
+  // Format: piece + destination square (e.g., "Rxd6", "Kg2", "e4")
+  const correct = currentQuestion.value.correctMove
+  const piece = correct.piece || ''
+  const to = questionState.value === 'wrong' ? lastMove.value.to : correct.to
+  // For non-pawn pieces, prepend the piece letter
+  if (piece && piece !== 'P') {
+    // Check if it's a capture (different source column)
+    const isCapture = questionState.value === 'solution' && currentQuestion.value.solution.toLowerCase().includes('capture')
+    return isCapture ? `${piece}x${to}` : `${piece}${to}`
+  }
+  return to
+})
+
 // Streak color logic
 // 0-1 = green (text-win), 2 = lowest, 3-4 = low, 5-6 = medium, 7+ = high
 const streakColor = computed(() => {
   const s = streak.value
+  if (s <= 1) return 'var(--color-text-win, #81b64c)'
+  if (s === 2) return 'var(--color-streak-lowest)'
+  if (s <= 4) return 'var(--color-streak-low)'
+  if (s <= 6) return 'var(--color-streak-medium)'
+  return 'var(--color-streak-high)'
+})
+
+// Progress bar color (synced with explosion)
+const progressBarColor = computed(() => {
+  const s = displayedStreak.value
   if (s <= 1) return 'var(--color-text-win, #81b64c)'
   if (s === 2) return 'var(--color-streak-lowest)'
   if (s <= 4) return 'var(--color-streak-low)'
@@ -507,6 +555,9 @@ const triggerSkillAnimation = (square, label = 'Correct!', setColor = true) => {
   // After 800ms (morph animation) + 50ms pause + 500ms (fall), show explosion
   setTimeout(() => {
     showExplosion.value = true
+    // Update progress bar at same time as explosion
+    displayedProgress.value = actualProgress.value
+    displayedStreak.value = streak.value
     
     // Clear explosion after 500ms
     setTimeout(() => {
@@ -682,13 +733,16 @@ const showSolution = () => {
   makeMove(correct.from, correct.to)
   questionState.value = 'solution'
   lastMove.value = { from: correct.from, to: correct.to }
-  // Play move sound
   playSound('move')
+  // Update progress immediately (no animation)
+  displayedProgress.value = actualProgress.value
+  displayedStreak.value = streak.value
 }
 
 const handleRetry = () => {
-  // Reload the current question to reset the board
   loadQuestion(currentQuestionIndex.value)
+  displayedProgress.value = actualProgress.value
+  displayedStreak.value = streak.value
 }
 
 const openVideo = () => {
@@ -699,6 +753,8 @@ const nextQuestion = () => {
   if (currentQuestionIndex.value < totalChallenges.value - 1) {
     currentQuestionIndex.value++
     loadQuestion(currentQuestionIndex.value)
+    displayedProgress.value = actualProgress.value
+    displayedStreak.value = streak.value
   }
 }
 
@@ -711,6 +767,8 @@ const prevQuestion = () => {
   if (currentQuestionIndex.value > 0) {
     currentQuestionIndex.value--
     loadQuestion(currentQuestionIndex.value)
+    displayedProgress.value = actualProgress.value
+    displayedStreak.value = streak.value
   }
 }
 
@@ -719,6 +777,8 @@ const prevQuestion = () => {
 // ============================================
 // Load first question immediately during setup (fixes HMR issues)
 loadQuestion(0)
+displayedProgress.value = 0
+displayedStreak.value = 0
 
 // Add global event listeners for drag immediately
 // (using document listeners that work even before mount)
@@ -864,6 +924,8 @@ onUnmounted(() => {
           ></div>
           <!-- Coach -->
           <CoachBubble 
+            :state="coachState"
+            :move-notation="moveNotation"
             :message="coachMessage"
             :show-tip="true"
           />
@@ -880,7 +942,7 @@ onUnmounted(() => {
             </div>
             <div class="progress-row">
               <div class="progress-bar" ref="progressBarRef">
-                <div class="progress-fill" :style="{ width: progressPercent + '%', background: streakColor }"></div>
+                <div class="progress-fill" :style="{ width: displayedProgress + '%', background: progressBarColor }"></div>
               </div>
               <div class="queen-badge">
                 <img :src="`${base}icons/misc/Diamond.svg`" alt="" class="queen-diamond" />

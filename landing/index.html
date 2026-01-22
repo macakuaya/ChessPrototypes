@@ -87,9 +87,24 @@
     .footer a:hover {
       color: rgba(255, 255, 255, 0.8);
     }
+
+    .pancito {
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      width: 80px;
+      height: auto;
+      opacity: 0.9;
+      transition: transform 0.2s ease;
+    }
+
+    .pancito:hover {
+      transform: scale(1.1) rotate(-5deg);
+    }
   </style>
 </head>
 <body>
+  <img src="../Pancito.png" alt="Pancito" class="pancito" />
   <div class="container">
     <h1>♟️ Chess Prototypes</h1>
     <p class="subtitle">Experimental UI prototypes for Chess.com</p>
