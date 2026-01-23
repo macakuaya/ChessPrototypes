@@ -942,7 +942,7 @@ onUnmounted(() => {
                   <span>{{ totalChallenges }}</span>
                 </span>
               </div>
-              <div class="streak" :style="{ color: streakColor }">
+              <div v-if="displayedStreak > 0" class="streak" :style="{ color: streakColor }">
                 <CcIcon name="element-fire-blank" :size="16" class="fire-icon" />
                 <span>{{ displayedStreak }}</span>
               </div>
