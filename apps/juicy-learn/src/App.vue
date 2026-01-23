@@ -64,6 +64,11 @@ const ANIMATION_COLORS = {
     coin: '#26C2A3',       // Teal coin
     textColor: '#1a9a82',  // Darker teal for text
   },
+  checkmate: {
+    overlay: '#FA412D',    // --color-red-300 (bg-loss)
+    coin: '#FA412D',
+    textColor: '#E02828',  // --color-red-400 for text
+  },
 }
 
 // ============================================
@@ -99,6 +104,7 @@ const lesson = {
     {
       fen: '6k1/1p3pp1/p5q1/8/7R/7P/3Q1PP1/6K1 w - - 0 0',
       correctMove: { from: 'd2', to: 'd8', piece: 'Q' }, // Qd8#
+      kingSquare: 'g8',  // Checkmated king's square
       intro: 'White can check with the queen or with the rook. Which one is checkmate?',
       wrong: "There's a possible checkmate, but that's not it. Look at your checks and try again.",
       hint: "Find a way to check so that the black king can't capture the piece that attacks it.",
@@ -107,6 +113,7 @@ const lesson = {
     {
       fen: '3k4/R7/1R6/8/8/7P/3q2PK/8 w - - 0 1',
       correctMove: { from: 'b6', to: 'b8', piece: 'R' }, // Rb8#
+      kingSquare: 'd8',  // Checkmated king's square
       intro: 'White has several checks, but only one is mate. Can you find it?',
       wrong: "There's a checkmate, but that's not it. Look at your checks and try again.",
       hint: "Look at your checks. See if you can find one that Black can't escape.",
@@ -139,6 +146,8 @@ const showExplosion = ref(false)      // Show the explosion circle at progress b
 // Piece movement animation state
 const movingPiece = ref(null)  // { type, fromSquare, toSquare, startPos, endPos }
 const brilliantHighlight = ref(null)  // Square to highlight with brilliant animation
+const checkmateHighlight = ref(null)  // Square for checkmate animation (on checkmated king)
+const checkmateKingColor = ref('black')  // 'black' or 'white' - color of the checkmated king icon
 
 // Refs for animation target positioning
 const progressBarRef = ref(null)      // Reference to progress bar element
@@ -285,6 +294,18 @@ const hasSkillHighlight = (square) => skillHighlight.value === square
 // Check if square has brilliant highlight
 const hasBrilliantHighlight = (square) => brilliantHighlight.value === square
 
+// Check if square has checkmate highlight
+const hasCheckmateHighlight = (square) => checkmateHighlight.value === square
+
+// Computed: Checkmate king icon name (same as queen: piece-fill-king)
+const checkmateKingIcon = computed(() => 'piece-fill-king')
+
+// Computed: Checkmate icon color (matches the checkmated king's color)
+// Use hex values since CcIcon doesn't interpret 'black'/'white' strings properly
+const checkmateIconColor = computed(() => {
+  return checkmateKingColor.value === 'black' ? '#262421' : '#ffffff'
+})
+
 // Generate all squares
 const squares = computed(() => {
   const result = []
@@ -337,6 +358,8 @@ const loadQuestion = (index) => {
   questionState.value = 'intro'
   selectedSquare.value = null
   lastMove.value = null
+  // Clear checkmate highlight when loading new question
+  checkmateHighlight.value = null
 }
 
 // Get piece on a specific square
@@ -537,6 +560,8 @@ const makeMove = (from, to) => {
 // onExplosion: callback when explosion happens (for progress bar/streak updates)
 // onComplete: callback when animation finishes
 const triggerSingleAnimation = (square, color, label, onExplosion = null, onComplete = null) => {
+  // Note: checkmateHighlight is NOT cleared here - checkmate coin stays visible
+  
   animationColor.value = color
   skillHighlight.value = square
   skillHighlightLabel.value = label
@@ -633,6 +658,22 @@ const triggerBrilliantAnimation = (square) => {
   }, 1200)
 }
 
+// Trigger checkmate animation on the checkmated king's square
+// The coin stays in place until replaced by the next animation
+const triggerCheckmateAnimation = (kingSquare, isBlackKing, onComplete) => {
+  checkmateHighlight.value = kingSquare
+  checkmateKingColor.value = isBlackKing ? 'black' : 'white'
+  // #region agent log
+  fetch('http://127.0.0.1:7244/ingest/9dc99f67-e73d-4770-bc76-e927450ee409',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'App.vue:666',message:'triggerCheckmateAnimation',data:{kingSquare,isBlackKing,checkmateKingColorSet:isBlackKing?'black':'white'},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'H2'})}).catch(()=>{});
+  // #endregion
+  
+  // After animation completes (800ms), call onComplete for next animations
+  // Don't clear checkmateHighlight here - it gets cleared when next animation starts
+  setTimeout(() => {
+    if (onComplete) nextTick(() => onComplete())
+  }, 800)
+}
+
 // Try to make a move (used by both click and drag)
 const tryMove = (from, to) => {
   if (questionState.value === 'solution') return false
@@ -650,8 +691,9 @@ const tryMove = (from, to) => {
   if (from === correct.from && to === correct.to) {
     // Check if it's a capture (piece on target square)
     const isCapture = getPieceOnSquare(to) !== undefined
-    // Check if it's checkmate (move ends with #)
-    const isCheckmate = currentQuestion.value.solution.toLowerCase().includes('checkmate')
+    // Check if it's checkmate (has kingSquare field in lesson data)
+    const isCheckmate = currentQuestion.value.kingSquare != null
+    const kingSquare = currentQuestion.value.kingSquare
     
     // Correct move!
     makeMove(from, to)
@@ -668,8 +710,22 @@ const tryMove = (from, to) => {
       playSound('move')
     }
     
-    // Trigger the two-animation sequence (Correct! then Streak X)
-    triggerCorrectMoveAnimations(to, streak.value)
+    // Trigger animations based on whether it's a checkmate
+    if (isCheckmate) {
+      // Determine king color based on side to move (FEN has 'w' = white to move, so black king is checkmated)
+      const isBlackKing = currentQuestion.value.fen.includes(' w ')
+      // #region agent log
+      fetch('http://127.0.0.1:7244/ingest/9dc99f67-e73d-4770-bc76-e927450ee409',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'App.vue:714',message:'isBlackKing calculation',data:{fen:currentQuestion.value.fen,hasWhiteToMove:currentQuestion.value.fen.includes(' w '),isBlackKing},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'H1'})}).catch(()=>{});
+      // #endregion
+      
+      // Trigger checkmate animation first, then regular animations
+      triggerCheckmateAnimation(kingSquare, isBlackKing, () => {
+        triggerCorrectMoveAnimations(to, streak.value)
+      })
+    } else {
+      // Regular two-animation sequence (Correct! then Streak X)
+      triggerCorrectMoveAnimations(to, streak.value)
+    }
     
     return true
   } else {
@@ -895,7 +951,7 @@ onUnmounted(() => {
                 v-if="hasBrilliantHighlight(square)" 
                 class="brilliant-icon-wrapper"
               >
-                <CcIcon name="move-exclamation-double" :size="29" color="white" />
+                <CcIcon name="move-exclamation-double" :size="51" color="white" class="brilliant-icon" />
               </div>
               
               <!-- Brilliant Label Bubble (teal, stays on board) -->
@@ -904,6 +960,28 @@ onUnmounted(() => {
                 class="brilliant-label-bubble"
               >
                 <span class="brilliant-label-text">Brilliant!</span>
+              </div>
+
+              <!-- Checkmate Highlight Overlay (red at 80% opacity) -->
+              <div 
+                v-if="hasCheckmateHighlight(square)" 
+                class="checkmate-highlight-overlay"
+              ></div>
+              
+              <!-- Checkmate Icon (Rotated King - defeated) -->
+              <div 
+                v-if="hasCheckmateHighlight(square)" 
+                class="checkmate-icon-wrapper"
+              >
+                <CcIcon :name="checkmateKingIcon" :size="51" class="checkmate-king-icon" :style="{ color: checkmateIconColor, fill: checkmateIconColor }" />
+              </div>
+              
+              <!-- Checkmate Label Bubble (red, stays on board) -->
+              <div 
+                v-if="hasCheckmateHighlight(square)" 
+                class="checkmate-label-bubble"
+              >
+                <span class="checkmate-label-text">Checkmate</span>
               </div>
 
               <!-- Piece -->
@@ -1482,22 +1560,22 @@ body {
 }
 
 @keyframes skill-plus-animate {
-  /* State 1 (0ms) - centered, faded */
+  /* State 1 (0ms) - centered, faded - 42px */
   0% {
     opacity: 0.1;
-    width: 36px;
-    height: 36px;
-    font-size: 24px;
+    width: 42px;
+    height: 42px;
+    font-size: 27px;
     top: 50%;
     left: 50%;
     transform: translate(-50%, -50%) rotate(0deg);
   }
-  /* State 2 (300ms = 22.2%) - visible, larger */
+  /* State 2 (300ms = 22.2%) - visible, larger - 51px (60% of 85px square) */
   22.2% {
     opacity: 1;
-    width: 44px;
-    height: 44px;
-    font-size: 28px;
+    width: 51px;
+    height: 51px;
+    font-size: 33px;
     top: 55%;
     left: 50%;
     transform: translate(-50%, -50%) rotate(0deg);
@@ -1505,9 +1583,9 @@ body {
   /* Hold State 2 (500ms = 37%) */
   37% {
     opacity: 1;
-    width: 44px;
-    height: 44px;
-    font-size: 28px;
+    width: 51px;
+    height: 51px;
+    font-size: 33px;
     top: 55%;
     left: 50%;
     transform: translate(-50%, -50%) rotate(0deg);
@@ -1679,21 +1757,31 @@ body {
   animation: brilliant-icon-animate 800ms cubic-bezier(0, 0, 0.4, 1) forwards;
 }
 
+/* Brilliant icon fills its container */
+.brilliant-icon {
+  width: 100% !important;
+  height: 100% !important;
+}
+.brilliant-icon :deep(svg) {
+  width: 100% !important;
+  height: 100% !important;
+}
+
 @keyframes brilliant-icon-animate {
-  /* State 1 (0ms) - centered, faded - scaled from 20px to 36px */
+  /* State 1 (0ms) - centered, faded - 42px */
   0% {
     opacity: 0.1;
-    width: 36px;
-    height: 36px;
+    width: 42px;
+    height: 42px;
     top: 50%;
     left: 50%;
     transform: translate(-50%, -50%);
   }
-  /* State 2 (300ms = 37.5%) - centered, visible, larger - scaled from 24px to 44px */
+  /* State 2 (300ms = 37.5%) - centered, visible, 51px (60% of 85px square) */
   37.5% {
     opacity: 1;
-    width: 44px;
-    height: 44px;
+    width: 51px;
+    height: 51px;
     top: 55%;
     left: 50%;
     transform: translate(-50%, -50%);
@@ -1701,13 +1789,13 @@ body {
   /* Hold State 2 (500ms = 62.5%) */
   62.5% {
     opacity: 1;
-    width: 44px;
-    height: 44px;
+    width: 51px;
+    height: 51px;
     top: 55%;
     left: 50%;
     transform: translate(-50%, -50%);
   }
-  /* State 3: in teal coin at top right (800ms = 100%) - scaled from 16px to 29px */
+  /* State 3: in teal coin at top right (800ms = 100%) */
   100% {
     opacity: 1;
     width: 29px;
@@ -1792,6 +1880,177 @@ body {
 }
 
 @keyframes brilliant-text-fade {
+  0% { opacity: 0; }
+  37.5% { opacity: 1; }
+  62.5% { opacity: 1; }
+  100% { opacity: 0; }
+}
+
+/* ============================================ */
+/* CHECKMATE ANIMATION (copy of brilliant but red, stays on board) */
+/* ============================================ */
+
+/* Checkmate Highlight Overlay (red at 80% opacity) */
+.checkmate-highlight-overlay {
+  position: absolute;
+  inset: 0;
+  background: v-bind('ANIMATION_COLORS.checkmate.overlay');
+  opacity: 0;
+  z-index: 2;
+  pointer-events: none;
+  animation: checkmate-overlay-animate 800ms cubic-bezier(0, 0, 0.4, 1) forwards;
+}
+
+@keyframes checkmate-overlay-animate {
+  0% { opacity: 0; }
+  37.5% { opacity: 0.8; }
+  62.5% { opacity: 0.8; }
+  100% { opacity: 0; }  /* Fades out like brilliant */
+}
+
+/* Checkmate Icon Wrapper - contains the king icon - scaled 1.8x */
+.checkmate-icon-wrapper {
+  position: absolute;
+  z-index: 5;
+  pointer-events: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  filter: drop-shadow(0px 2px 0px rgba(0, 0, 0, 0.25));
+  /* 800ms animation - no falling, stays at final position */
+  animation: checkmate-icon-animate 800ms cubic-bezier(0, 0, 0.4, 1) forwards;
+}
+
+/* Rotated king icon (defeated/fallen look) */
+.checkmate-king-icon {
+  transform: rotate(-90deg);
+  width: 100% !important;
+  height: 100% !important;
+}
+
+/* Force fill color on checkmate king SVG */
+.checkmate-king-icon :deep(svg),
+.checkmate-king-icon :deep(svg path),
+.checkmate-king-icon :deep(svg *) {
+  fill: v-bind('checkmateIconColor') !important;
+  color: v-bind('checkmateIconColor') !important;
+  width: 100% !important;
+  height: 100% !important;
+}
+
+@keyframes checkmate-icon-animate {
+  /* State 1 (0ms) - centered, faded - 42px */
+  0% {
+    opacity: 0.1;
+    width: 42px;
+    height: 42px;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+  }
+  /* State 2 (300ms = 37.5%) - centered, visible, 51px (60% of 85px square) */
+  37.5% {
+    opacity: 1;
+    width: 51px;
+    height: 51px;
+    top: 55%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+  }
+  /* Hold State 2 (500ms = 62.5%) */
+  62.5% {
+    opacity: 1;
+    width: 51px;
+    height: 51px;
+    top: 55%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+  }
+  /* State 3: in red coin at top right (800ms = 100%) */
+  100% {
+    opacity: 1;
+    width: 29px;
+    height: 29px;
+    top: 7px;
+    left: 90%;
+    transform: translate(-50%, -50%);
+  }
+}
+
+/* Checkmate Label Bubble (white pill → red circle, stays on board) - scaled 1.8x */
+.checkmate-label-bubble {
+  position: absolute;
+  left: 90%;
+  top: -11px;
+  height: 36px;
+  z-index: 4;
+  pointer-events: none;
+  box-shadow: 0px 2px 0px rgba(0, 0, 0, 0.15);
+  white-space: nowrap;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 18px;
+  /* 800ms animation - no falling, stays at final position */
+  animation: checkmate-pill-animate 800ms cubic-bezier(0, 0, 0.4, 1) forwards;
+}
+
+@keyframes checkmate-pill-animate {
+  /* State 1: centered, faded (0ms) */
+  0% {
+    opacity: 0;
+    top: 50%;
+    left: 90%;
+    transform: translate(-50%, -50%);
+    max-width: 200px;
+    padding: 0 11px;
+    background: white;
+  }
+  /* State 2: at top, visible, white pill (300ms = 37.5%) */
+  37.5% {
+    opacity: 1;
+    top: -11px;
+    left: 90%;
+    transform: translate(-50%, 0);
+    max-width: 200px;
+    padding: 0 11px;
+    background: white;
+  }
+  /* Hold State 2 (500ms = 62.5%) */
+  62.5% {
+    opacity: 1;
+    top: -11px;
+    left: 90%;
+    transform: translate(-50%, 0);
+    max-width: 200px;
+    padding: 0 11px;
+    background: white;
+  }
+  /* State 3: red circle (800ms = 100%) - scaled from 20px to 36px */
+  100% {
+    opacity: 1;
+    top: -11px;
+    left: 90%;
+    transform: translate(-50%, 0);
+    max-width: 36px;
+    padding: 0;
+    background: v-bind('ANIMATION_COLORS.checkmate.coin');
+  }
+}
+
+/* Text inside the checkmate pill - fades out - scaled 1.8x */
+.checkmate-label-text {
+  font-family: 'Chess Sans', system-ui, sans-serif;
+  font-size: 20px;
+  font-weight: 800;
+  line-height: 36px;
+  color: v-bind('ANIMATION_COLORS.checkmate.textColor');
+  white-space: nowrap;
+  animation: checkmate-text-fade 800ms cubic-bezier(0, 0, 0.4, 1) forwards;
+}
+
+@keyframes checkmate-text-fade {
   0% { opacity: 0; }
   37.5% { opacity: 1; }
   62.5% { opacity: 1; }
