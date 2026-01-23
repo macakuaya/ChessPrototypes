@@ -90,3 +90,10 @@
 | 3 | `6k1/5pp1/3Q3p/3b4/8/6P1/5PKP/2r5 w` | Qxd5 | Capture to escape check |
 | 4 | `6k1/1p3pp1/p5q1/8/7R/7P/3Q1PP1/6K1 w` | Qd8# | Checkmate |
 | 5 | `3k4/R7/1R6/8/8/7P/3q2PK/8 w` | Rb8# | Checkmate |
+
+
+
+
+
+## Lesson: The Goals of Chess
+

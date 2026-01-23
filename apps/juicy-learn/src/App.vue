@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, watch, onUnmounted } from 'vue'
+import { ref, computed, watch, onUnmounted, nextTick } from 'vue'
 import { CcButton, CcIconButton, CcIcon } from '@chesscom/design-system'
 import CoachBubble from './components/CoachBubble.vue'
 import { playSound } from '@chess/components/sounds'
@@ -531,14 +531,13 @@ const makeMove = (from, to) => {
   }
 }
 
-// Trigger skill highlight animation on a square
-// If setColor is true, it will set animationColor (for cases where color wasn't pre-set)
-const triggerSkillAnimation = (square, label = 'Correct!', setColor = true) => {
-  // Set animation color based on current streak (before it's incremented)
-  if (setColor) {
-    animationColor.value = getAnimationColor(streak.value)
-  }
-  
+// Trigger a single skill animation on a square
+// color: the color to use for the animation
+// label: the text to show (e.g., "Correct!", "Streak 1")
+// onExplosion: callback when explosion happens (for progress bar/streak updates)
+// onComplete: callback when animation finishes
+const triggerSingleAnimation = (square, color, label, onExplosion = null, onComplete = null) => {
+  animationColor.value = color
   skillHighlight.value = square
   skillHighlightLabel.value = label
   
@@ -548,17 +547,14 @@ const triggerSkillAnimation = (square, label = 'Correct!', setColor = true) => {
     const panelContent = progressBarRef.value.closest('.panel-content')
     if (panelContent) {
       const panelRect = panelContent.getBoundingClientRect()
-      // Center of progress bar relative to panel-content
       explosionTop.value = (barRect.top + barRect.height / 2) - panelRect.top
     }
   }
   
-  // After 800ms (morph animation) + 50ms pause + 500ms (fall), show explosion
+  // After 800ms (morph) + 50ms pause + 500ms (fall), show explosion
   setTimeout(() => {
     showExplosion.value = true
-    // Update progress bar at same time as explosion
-    displayedProgress.value = actualProgress.value
-    displayedStreak.value = streak.value
+    if (onExplosion) onExplosion()
     
     // Clear explosion after 500ms
     setTimeout(() => {
@@ -570,7 +566,61 @@ const triggerSkillAnimation = (square, label = 'Correct!', setColor = true) => {
   setTimeout(() => {
     skillHighlight.value = null
     skillHighlightLabel.value = null
+    // Use nextTick to ensure DOM updates before starting next animation
+    // This allows v-if to remove the element before re-adding it
+    if (onComplete) {
+      nextTick(() => {
+        onComplete()
+      })
+    }
   }, 1850)
+}
+
+// Trigger the full correct move animation sequence:
+// 1. "Correct!" animation (always green) - grows progress bar
+// 2. "Streak X" animation (streak-colored) - updates streak counter/color
+const triggerCorrectMoveAnimations = (square, streakNumber) => {
+  const greenColor = STREAK_COLORS.green // Always green for "Correct!"
+  const streakColor = getAnimationColor(streakNumber - 1) // Color for this streak level
+  
+  // Animation 1: "Correct!" (green)
+  triggerSingleAnimation(
+    square,
+    greenColor,
+    'Correct!',
+    () => {
+      // On explosion: grow the progress bar
+      displayedProgress.value = actualProgress.value
+    },
+    () => {
+      // On complete: start the streak animation
+      triggerSingleAnimation(
+        square,
+        streakColor,
+        `Streak ${streakNumber}`,
+        () => {
+          // On explosion: update streak counter and color
+          displayedStreak.value = streak.value
+        },
+        null
+      )
+    }
+  )
+}
+
+// Legacy function for backwards compatibility (used by solution button, etc.)
+const triggerSkillAnimation = (square, label = 'Correct!', setColor = true) => {
+  const color = setColor ? getAnimationColor(streak.value) : animationColor.value
+  triggerSingleAnimation(
+    square,
+    color,
+    label,
+    () => {
+      displayedProgress.value = actualProgress.value
+      displayedStreak.value = streak.value
+    },
+    null
+  )
 }
 
 // Trigger brilliant highlight animation on a square
@@ -603,9 +653,6 @@ const tryMove = (from, to) => {
     // Check if it's checkmate (move ends with #)
     const isCheckmate = currentQuestion.value.solution.toLowerCase().includes('checkmate')
     
-    // Set animation color BEFORE incrementing streak
-    animationColor.value = getAnimationColor(streak.value)
-    
     // Correct move!
     makeMove(from, to)
     streak.value++
@@ -621,8 +668,8 @@ const tryMove = (from, to) => {
       playSound('move')
     }
     
-    // Trigger animation on the target square (color already set)
-    triggerSkillAnimation(to, 'Correct!', false)
+    // Trigger the two-animation sequence (Correct! then Streak X)
+    triggerCorrectMoveAnimations(to, streak.value)
     
     return true
   } else {
