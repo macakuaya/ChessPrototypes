@@ -108,6 +108,7 @@ defineProps({
   line-height: 32px;
   color: white;
   margin: 0;
+  text-wrap: balance;
 }
 
 .celebration-subtitle {
@@ -117,6 +118,7 @@ defineProps({
   line-height: 18px;
   color: rgba(255, 255, 255, 0.85);
   margin: 0;
+  text-wrap: balance;
 }
 
 /* Vue Transition - for fade out */
