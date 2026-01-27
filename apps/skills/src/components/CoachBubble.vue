@@ -112,6 +112,8 @@ function onAfterLeave() {
   max-width: 275px;
   min-height: 80px;
   margin-left: -6px;
+  display: flex;
+  align-items: flex-end;
 }
 
 .bubble {

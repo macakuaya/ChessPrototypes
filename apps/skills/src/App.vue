@@ -62,20 +62,56 @@ const skillUnlockedData = ref({
 const brilliantHighlightSquare = ref(null) // Square to highlight with brilliant animation
 const brilliantRevealedPlies = ref([]) // Track which plies have been brilliant-revealed
 
-// Coach bubble visibility - hide during certain celebrations
-const showCoachBubble = computed(() => {
-  if (showBoardCelebration.value && 
+// Coach bubble content state
+const coachBubbleMode = ref('original') // 'original' or 'ftue'
+const showCoachBubble = ref(true)
+
+// FTUE message content
+const ftueBubbleMessage = 'You earned a skill point! Skill points are rewarded for good moves played in your games. Level up to unlock more skills!'
+
+// Original bubble content
+const originalBubbleContent = {
+  headerText: 'The Immortal Game (1851)',
+  message: 'Anderssen sacrificed a bishop, both rooks, and his queen to deliver checkmate!'
+}
+
+// Computed coach bubble content based on mode
+const coachBubbleContent = computed(() => {
+  if (coachBubbleMode.value === 'ftue') {
+    return {
+      headerText: '',
+      message: ftueBubbleMessage
+    }
+  }
+  return originalBubbleContent
+})
+
+// Watch for celebrations that should hide the coach bubble
+watch(showBoardCelebration, (newVal) => {
+  if (newVal && 
       (boardCelebrationData.value.title === 'You Earned a Skill Point' ||
        boardCelebrationData.value.title === 'New Skills Unlocked!' ||
        boardCelebrationData.value.title === 'You mastered a Skill!')) {
-    return false
+    showCoachBubble.value = false
   }
-  return true
 })
 
 // Called when coach bubble finishes its leave animation
 function onCoachBubbleLeave() {
-  // Ready to show a new bubble - will be implemented later
+  // If we're in FTUE celebration and bubble just faded out with original content, show FTUE message
+  if (showBoardCelebration.value && 
+      boardCelebrationData.value.title === 'You Earned a Skill Point' &&
+      selectedPrototype.value === 'ftue' &&
+      coachBubbleMode.value === 'original') {
+    // Swap to FTUE message and show bubble again
+    coachBubbleMode.value = 'ftue'
+    showCoachBubble.value = true
+  }
+  // If bubble just faded out with FTUE content (after Continue), restore original
+  else if (coachBubbleMode.value === 'ftue' && !showBoardCelebration.value) {
+    coachBubbleMode.value = 'original'
+    showCoachBubble.value = true
+  }
 }
 
 // Skill earned data - set at trigger time, not reactive during animation
@@ -439,6 +475,8 @@ function initializePrototypeState(prototype) {
   showBoardCelebration.value = false
   showContinueButton.value = false
   showSkillUnlockedModal.value = false
+  coachBubbleMode.value = 'original'
+  showCoachBubble.value = true
   endOfFtueCompleted.value = false
   allSkillsMasteredCompleted.value = false
   activePly.value = 0
@@ -924,6 +962,10 @@ function onContinueClick() {
   }
   
   // Default behavior for other celebrations
+  // If FTUE bubble is showing, hide it (will trigger onCoachBubbleLeave to restore original)
+  if (coachBubbleMode.value === 'ftue') {
+    showCoachBubble.value = false
+  }
   showBoardCelebration.value = false
   showContinueButton.value = false
   showSkillEarned.value = false
@@ -1049,10 +1091,10 @@ onUnmounted(() => {
 
       <section class="coach-area">
         <CoachBubble 
-          :header-icon="navIcons.brilliant"
-          header-text="The Immortal Game (1851)"
+          :header-icon="coachBubbleMode === 'original' ? navIcons.brilliant : ''"
+          :header-text="coachBubbleContent.headerText"
           eval-text=""
-          message="Anderssen sacrificed a bishop, both rooks, and his queen to deliver checkmate!"
+          :message="coachBubbleContent.message"
           :show-tip="true"
           :visible="showCoachBubble"
           @after-leave="onCoachBubbleLeave"
