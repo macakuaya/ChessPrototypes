@@ -26,9 +26,11 @@ const tipSrc = `${base}icons/misc/bubble-tip.svg`
 const preservedHeight = ref(null)
 
 watch(() => props.visible, (newVal, oldVal) => {
-  // When hiding, capture current height to preserve space
+  // When hiding, capture current height to preserve space (keep max height)
   if (!newVal && oldVal && bubbleRef.value) {
-    preservedHeight.value = bubbleRef.value.offsetHeight
+    const currentHeight = bubbleRef.value.offsetHeight
+    // Keep the maximum height to prevent shrinkage when shorter content fades out
+    preservedHeight.value = Math.max(currentHeight, preservedHeight.value || 0)
   }
 })
 
@@ -180,6 +182,8 @@ function onAfterLeave() {
 .bubble-content {
   display: flex;
   flex-direction: column;
+  justify-content: center;
+  align-items: flex-start;
   gap: 8px;
   padding: 12px;
   min-height: 64px;
