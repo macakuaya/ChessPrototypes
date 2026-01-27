@@ -9,6 +9,7 @@ const props = defineProps({
   evalText: { type: String, default: '' },
   message: { type: String, default: '' },
   showTip: { type: Boolean, default: true },
+  visible: { type: Boolean, default: true },
 })
 
 // Default to brilliant icon if no icon specified
@@ -25,7 +26,7 @@ const tipSrc = `${base}icons/misc/bubble-tip.svg`
     </div>
     
     <!-- Speech Bubble -->
-    <div class="bubble">
+    <div class="bubble" :class="{ hidden: !visible }">
       <!-- Tip pointing to avatar -->
       <div v-if="showTip" class="tip">
         <img :src="tipSrc" alt="" />
@@ -85,6 +86,12 @@ const tipSrc = `${base}icons/misc/bubble-tip.svg`
   border-radius: 10px;
   overflow: visible;
   margin-left: -6px;
+  opacity: 1;
+  transition: opacity var(--motion-steady) var(--motion-ease-out-gentle);
+}
+
+.bubble.hidden {
+  opacity: 0;
 }
 
 .tip {

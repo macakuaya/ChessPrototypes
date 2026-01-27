@@ -62,6 +62,17 @@ const skillUnlockedData = ref({
 const brilliantHighlightSquare = ref(null) // Square to highlight with brilliant animation
 const brilliantRevealedPlies = ref([]) // Track which plies have been brilliant-revealed
 
+// Coach bubble visibility - hide during certain celebrations
+const showCoachBubble = computed(() => {
+  if (showBoardCelebration.value && 
+      (boardCelebrationData.value.title === 'You Earned a Skill Point' ||
+       boardCelebrationData.value.title === 'New Skills Unlocked!' ||
+       boardCelebrationData.value.title === 'You mastered a Skill!')) {
+    return false
+  }
+  return true
+})
+
 // Skill earned data - set at trigger time, not reactive during animation
 const skillEarnedData = ref({
   skillName: 'Rook Sacrifice',
@@ -1038,6 +1049,7 @@ onUnmounted(() => {
           eval-text=""
           message="Anderssen sacrificed a bishop, both rooks, and his queen to deliver checkmate!"
           :show-tip="true"
+          :visible="showCoachBubble"
         />
       </section>
 
