@@ -1160,6 +1160,7 @@ onUnmounted(() => {
             :image="boardCelebrationData.image"
             :title="boardCelebrationData.title"
             :subtitle="boardCelebrationData.subtitle"
+            :variant="boardCelebrationData.title === 'You Earned a Skill Point' ? 'image' : 'icon'"
           />
         </div>
       </section>

@@ -4,6 +4,7 @@ defineProps({
   image: { type: String, default: null },
   title: { type: String, default: 'You Earned a Skill Point' },
   subtitle: { type: String, default: 'Keep reviewing until you master every skill' },
+  variant: { type: String, default: 'icon' }, // 'icon' (small) or 'image' (large)
 })
 </script>
 
@@ -14,7 +15,7 @@ defineProps({
       <div class="celebration-container">
         <div class="celebration-content">
           <!-- Image -->
-          <div v-if="image" class="celebration-image">
+          <div v-if="image" class="celebration-image" :class="variant">
             <img :src="image" :alt="title" />
           </div>
           
@@ -78,9 +79,17 @@ defineProps({
   gap: 12px;
 }
 
+/* Default: icon variant (smaller image) */
 .celebration-image {
   width: 33.33%;
   aspect-ratio: 4 / 3;
+}
+
+/* Image variant (larger image for "You Earned a Skill Point") */
+.celebration-image.image {
+  width: 100%;
+  max-width: 360px;
+  max-height: 270px;
 }
 
 .celebration-image img {
