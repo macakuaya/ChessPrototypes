@@ -211,6 +211,9 @@ watch(showBoardCelebration, (newVal) => {
 })
 
 // Called when coach bubble finishes its leave animation
+// Coach FTUE voice audio
+let coachFtueAudio = null
+
 function onCoachBubbleLeave() {
   // "You Earned a Skill Point" (FTUE only) - show FTUE educational message
   if (showBoardCelebration.value && 
@@ -218,6 +221,13 @@ function onCoachBubbleLeave() {
       coachBubbleMode.value === 'original') {
     coachBubbleMode.value = 'ftue'
     showCoachBubble.value = true
+    
+    // Play coach voice-over for FTUE message
+    if (!coachFtueAudio) {
+      coachFtueAudio = new Audio(`${import.meta.env.BASE_URL}sounds/coach-ftue-voice.mp3`)
+    }
+    coachFtueAudio.currentTime = 0
+    coachFtueAudio.play().catch(e => console.warn('Could not play FTUE audio:', e))
   }
   // "You Mastered a Skill!" - show random encouraging message
   else if (showBoardCelebration.value && 
@@ -903,6 +913,12 @@ function closeBoardCelebration() {
   showBoardCelebration.value = false
   showContinueButton.value = false
   showMoveList.value = true
+  
+  // Stop FTUE audio if playing
+  if (coachFtueAudio) {
+    coachFtueAudio.pause()
+    coachFtueAudio.currentTime = 0
+  }
 }
 
 // Handle counter animation complete - show celebration for first skill or mastery
