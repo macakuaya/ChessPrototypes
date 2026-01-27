@@ -63,11 +63,25 @@ const brilliantHighlightSquare = ref(null) // Square to highlight with brilliant
 const brilliantRevealedPlies = ref([]) // Track which plies have been brilliant-revealed
 
 // Coach bubble content state
-const coachBubbleMode = ref('original') // 'original' or 'ftue'
+const coachBubbleMode = ref('original') // 'original', 'ftue', or 'encouraging'
 const showCoachBubble = ref(true)
 
 // FTUE message content
 const ftueBubbleMessage = 'You earned a skill point! Skill points are rewarded for good moves played in your games. Level up to unlock more skills!'
+
+// Encouraging messages for "New Skills Unlocked" celebrations
+const encouragingMessages = [
+  'Great job!',
+  'Way to go!',
+  "That's how you do it.",
+  'You nailed it.'
+]
+const currentEncouragingMessage = ref('')
+
+function getRandomEncouragingMessage() {
+  const index = Math.floor(Math.random() * encouragingMessages.length)
+  return encouragingMessages[index]
+}
 
 // Original bubble content
 const originalBubbleContent = {
@@ -83,6 +97,12 @@ const coachBubbleContent = computed(() => {
       message: ftueBubbleMessage
     }
   }
+  if (coachBubbleMode.value === 'encouraging') {
+    return {
+      headerText: '',
+      message: currentEncouragingMessage.value
+    }
+  }
   return originalBubbleContent
 })
 
@@ -91,24 +111,38 @@ watch(showBoardCelebration, (newVal) => {
   if (newVal && 
       (boardCelebrationData.value.title === 'You Earned a Skill Point' ||
        boardCelebrationData.value.title === 'New Skills Unlocked!' ||
-       boardCelebrationData.value.title === 'You mastered a Skill!')) {
+       boardCelebrationData.value.title === 'You Mastered a Skill!')) {
+    showCoachBubble.value = false
+  }
+  // When celebration ends and we're showing FTUE or encouraging message, hide bubble
+  // (this triggers onCoachBubbleLeave which will restore original bubble)
+  else if (!newVal && (coachBubbleMode.value === 'ftue' || coachBubbleMode.value === 'encouraging')) {
     showCoachBubble.value = false
   }
 })
 
 // Called when coach bubble finishes its leave animation
 function onCoachBubbleLeave() {
-  // If we're in FTUE celebration and bubble just faded out with original content, show FTUE message
+  // "You Earned a Skill Point" (FTUE only) - show FTUE educational message
   if (showBoardCelebration.value && 
       boardCelebrationData.value.title === 'You Earned a Skill Point' &&
-      selectedPrototype.value === 'ftue' &&
       coachBubbleMode.value === 'original') {
-    // Swap to FTUE message and show bubble again
     coachBubbleMode.value = 'ftue'
     showCoachBubble.value = true
   }
-  // If bubble just faded out with FTUE content (after Continue), restore original
-  else if (coachBubbleMode.value === 'ftue' && !showBoardCelebration.value) {
+  // "You Mastered a Skill!" - show random encouraging message
+  else if (showBoardCelebration.value && 
+      boardCelebrationData.value.title === 'You Mastered a Skill!' &&
+      coachBubbleMode.value === 'original') {
+    currentEncouragingMessage.value = getRandomEncouragingMessage()
+    coachBubbleMode.value = 'encouraging'
+    showCoachBubble.value = true
+  }
+  // "New Skills Unlocked!" - keep the same bubble (do nothing, it's already showing)
+  // No action needed - the bubble persists from the previous celebration
+  
+  // If bubble just faded out with FTUE or encouraging content (after Continue), restore original
+  else if ((coachBubbleMode.value === 'ftue' || coachBubbleMode.value === 'encouraging') && !showBoardCelebration.value) {
     coachBubbleMode.value = 'original'
     showCoachBubble.value = true
   }
@@ -476,6 +510,7 @@ function initializePrototypeState(prototype) {
   showContinueButton.value = false
   showSkillUnlockedModal.value = false
   coachBubbleMode.value = 'original'
+  currentEncouragingMessage.value = ''
   showCoachBubble.value = true
   endOfFtueCompleted.value = false
   allSkillsMasteredCompleted.value = false
@@ -788,7 +823,7 @@ function onCounterComplete() {
     // This is the second rook sacrifice, will become 10/10 (mastery!)
     boardCelebrationData.value = {
       image: `${import.meta.env.BASE_URL}icons/skills/white_rook.png`,
-      title: 'You mastered a Skill!',
+      title: 'You Mastered a Skill!',
       subtitle: ''
     }
     showBoardCelebration.value = true
@@ -798,17 +833,17 @@ function onCounterComplete() {
   else if (selectedPrototype.value === 'all-skills-mastered' && currentSkillType.value === 'queen' && queenSacrificeCount.value === 9) {
     boardCelebrationData.value = {
       image: `${import.meta.env.BASE_URL}icons/skills/white_queen.png`,
-      title: 'You mastered a Skill!',
+      title: 'You Mastered a Skill!',
       subtitle: ''
     }
     showBoardCelebration.value = true
     showContinueButton.value = true
   }
-  // End of FTUE celebration (checkmate completes the tutorial)
+  // End of FTUE celebration (checkmate completes the tutorial) - first show mastery
   else if (selectedPrototype.value === 'end-of-ftue' && currentSkillType.value === 'checkmate' && checkmateCount.value === 9) {
     boardCelebrationData.value = {
-      image: 'https://www.chess.com/bundles/web/images/color-icons/commerce-gold.svg',
-      title: 'New Skills Unlocked!',
+      image: `${import.meta.env.BASE_URL}icons/skills/checkmate-dark.png`,
+      title: 'You Mastered a Skill!',
       subtitle: ''
     }
     showBoardCelebration.value = true
@@ -854,27 +889,34 @@ function onContinueClick() {
     checkmateCount.value === 9
 
   if (isEndOfFtue) {
-    // Close celebration and return to normal state
-    showSkillEarned.value = false
-    skillHighlightSquare.value = null
-    showExplosion.value = false
-    showContinueButton.value = false
-    showBoardCelebration.value = false
-    
-    // Update counter
-    checkmateCount.value++
-    
-    // Mark End of FTUE as completed - this enables tabs and shows new skills
-    endOfFtueCompleted.value = true
-    
-    // Mark ply as revealed
-    if (savedPly && !revealedSkillPlies.value.includes(savedPly)) {
-      revealedSkillPlies.value = [...revealedSkillPlies.value, savedPly]
+    // Transition from "You Mastered a Skill!" to "New Skills Unlocked!"
+    boardCelebrationData.value = {
+      image: 'https://www.chess.com/bundles/web/images/color-icons/commerce-gold.svg',
+      title: 'New Skills Unlocked!',
+      subtitle: ''
     }
+    // Keep buttons visible during "New Skills Unlocked!"
     
-    currentAnimatingPly.value = null
-    currentSkillType.value = null
-    showMoveList.value = true
+    // After 2000ms, auto-dismiss celebration
+    setTimeout(() => {
+      showSkillEarned.value = false
+      skillHighlightSquare.value = null
+      showExplosion.value = false
+      showContinueButton.value = false
+      
+      // Update counter
+      checkmateCount.value++
+      
+      // Mark end of FTUE as completed
+      endOfFtueCompleted.value = true
+      
+      showBoardCelebration.value = false
+      showMoveList.value = true
+      
+      // Clear animation state
+      currentAnimatingPly.value = null
+      currentSkillType.value = null
+    }, 2000)
     
     return
   }
@@ -962,8 +1004,8 @@ function onContinueClick() {
   }
   
   // Default behavior for other celebrations
-  // If FTUE bubble is showing, hide it (will trigger onCoachBubbleLeave to restore original)
-  if (coachBubbleMode.value === 'ftue') {
+  // If FTUE or encouraging bubble is showing, hide it (will trigger onCoachBubbleLeave to restore original)
+  if (coachBubbleMode.value === 'ftue' || coachBubbleMode.value === 'encouraging') {
     showCoachBubble.value = false
   }
   showBoardCelebration.value = false
@@ -1061,7 +1103,7 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <div class="app">
+  <div class="app dark-mode">
     <div class="phone-frame">
       <header class="nav-bar">
         <div class="status-bar">
@@ -1187,7 +1229,7 @@ onUnmounted(() => {
               <CcButton variant="primary" size="x-large" class="tab-cta-ds" @click="playNextMoves">Next</CcButton>
             </div>
             <div v-else key="continue" class="continue-group">
-              <cc-button v-if="selectedPrototype !== 'end-of-ftue'" variant="secondary" size="large">Share</cc-button>
+              <cc-button variant="secondary" size="large">Share</cc-button>
               <cc-button variant="primary" size="large" @click="onContinueClick">Continue</cc-button>
             </div>
           </Transition>
