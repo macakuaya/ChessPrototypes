@@ -13,6 +13,7 @@ import PrototypeMenu from './components/PrototypeMenu.vue'
 import { BoardCelebration, SkillEarned, SkillUnlockedModal, playSound } from '@chess/components'
 import { parsePGN, calculatePositions, boardToPieces, markBrilliantMoves } from './utils/chess.js'
 import { Rive } from '@rive-app/canvas-lite'
+import { Vue3Lottie } from 'vue3-lottie'
 
 const activePly = ref(0)
 const showSkillsSheet = ref(false)
@@ -87,6 +88,10 @@ onUnmounted(() => {
     riveInstance.cleanup()
     riveInstance = null
   }
+  if (lottieApp) {
+    lottieApp.unmount()
+    lottieApp = null
+  }
 })
 const allSkillsMasteredCompleted = ref(false) // Track if All Skills Mastered celebration has been completed
 
@@ -96,8 +101,51 @@ const skillUnlockedData = ref({
   skillName: 'Queen Sacrifice',
   skillDescription: 'A tactical move where you deliberately give up your queen to gain a decisive advantage, often leading to checkmate or winning material back.',
   skillImage: '',
+  lottieFile: null,
   showShareButton: false
 })
+
+// Lottie animation for Skill Unlocked Modal
+const skillUnlockedModalRef = ref(null)
+let lottieApp = null
+
+// Initialize/cleanup Lottie when modal visibility changes
+watch([showSkillUnlockedModal, () => skillUnlockedData.value.lottieFile], async ([isVisible, lottieFile]) => {
+  // Cleanup existing instance
+  if (lottieApp) {
+    lottieApp.destroy()
+    lottieApp = null
+  }
+  
+  if (isVisible && lottieFile) {
+    await nextTick()
+    
+    const container = skillUnlockedModalRef.value?.lottieContainer
+    if (container) {
+      // Fetch and parse Lottie JSON
+      try {
+        const response = await fetch(lottieFile)
+        const animationData = await response.json()
+        
+        // Create Lottie instance using the Vue3Lottie approach
+        const { createApp, h } = await import('vue')
+        const lottieVNode = h(Vue3Lottie, {
+          animationData,
+          loop: true,
+          autoPlay: true,
+          style: { width: '100%', height: '100%' }
+        })
+        
+        lottieApp = createApp({
+          render: () => lottieVNode
+        })
+        lottieApp.mount(container)
+      } catch (e) {
+        console.warn('Failed to load Lottie animation:', e)
+      }
+    }
+  }
+}, { immediate: true })
 
 // Brilliant animation state (triggers after skill animation)
 const brilliantHighlightSquare = ref(null) // Square to highlight with brilliant animation
@@ -990,6 +1038,7 @@ function onContinueClick() {
       skillName: 'Skills Complete',
       skillDescription: 'Impressive! You completed all the challenges. Now go show off your new skills.',
       skillImage: '',
+      lottieFile: `${import.meta.env.BASE_URL}animations/skill-complete.json`,
       showShareButton: true
     }
     showSkillUnlockedModal.value = true
@@ -1037,6 +1086,7 @@ function onContinueClick() {
         skillName: 'Queen Sacrifice',
         skillDescription: 'A tactical move where you deliberately give up your queen to gain a decisive advantage, often leading to checkmate or winning material back.',
         skillImage: '',
+        lottieFile: null,
         showShareButton: false
       }
       showSkillUnlockedModal.value = true
@@ -1290,10 +1340,12 @@ onUnmounted(() => {
 
       <!-- Skill Unlocked Hero Modal -->
       <SkillUnlockedModal
+        ref="skillUnlockedModalRef"
         :visible="showSkillUnlockedModal"
         :skill-name="skillUnlockedData.skillName"
         :skill-description="skillUnlockedData.skillDescription"
         :skill-image="skillUnlockedData.skillImage"
+        :lottie-file="skillUnlockedData.lottieFile"
         :show-share-button="skillUnlockedData.showShareButton"
         @continue="onSkillUnlockedContinue"
         @close="onSkillUnlockedClose"

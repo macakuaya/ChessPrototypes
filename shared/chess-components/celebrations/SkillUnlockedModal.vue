@@ -1,4 +1,5 @@
 <script setup>
+import { ref } from 'vue'
 import { CcButton, CcIcon } from '@chesscom/design-system'
 
 const props = defineProps({
@@ -18,11 +19,19 @@ const props = defineProps({
     type: String,
     default: ''
   },
+  lottieFile: {
+    type: String,
+    default: null
+  },
   showShareButton: {
     type: Boolean,
     default: false
   }
 })
+
+// Expose container ref for parent to mount Lottie
+const lottieContainer = ref(null)
+defineExpose({ lottieContainer })
 
 const emit = defineEmits(['close', 'continue', 'share'])
 
@@ -59,7 +68,7 @@ function handleShare() {
       <!-- Content -->
       <div class="modal-content">
         <div class="main-content">
-          <!-- Skill Image -->
+          <!-- Skill Image or Lottie Animation -->
           <div class="skill-image-container">
             <img 
               v-if="skillImage" 
@@ -68,6 +77,7 @@ function handleShare() {
               class="skill-image"
             />
             <div v-else class="skill-image-placeholder">
+              <div v-if="lottieFile" ref="lottieContainer" class="lottie-container"></div>
             </div>
           </div>
           
@@ -189,6 +199,20 @@ function handleShare() {
   height: 100%;
   background: #3d3a36;
   border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+
+/* Remove background when there's content inside */
+.skill-image-placeholder:has(.lottie-container) {
+  background: transparent;
+}
+
+.lottie-container {
+  width: 100%;
+  height: 100%;
   display: flex;
   align-items: center;
   justify-content: center;
