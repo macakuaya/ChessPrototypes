@@ -1,5 +1,5 @@
 <script setup>
-import { computed } from 'vue'
+import { computed, ref, watch } from 'vue'
 
 const base = import.meta.env.BASE_URL
 
@@ -12,44 +12,71 @@ const props = defineProps({
   visible: { type: Boolean, default: true },
 })
 
+const emit = defineEmits(['after-leave'])
+
+// Ref for measuring bubble element
+const bubbleRef = ref(null)
+
 // Default to brilliant icon if no icon specified
 const iconSrc = computed(() => props.headerIcon || `${base}icons/move-classifications/brilliant.svg`)
 const avatarSrc = `${base}icons/misc/coach-avatar.png`
 const tipSrc = `${base}icons/misc/bubble-tip.svg`
+
+// Preserve wrapper height when bubble hides to prevent layout shift
+const preservedHeight = ref(null)
+
+watch(() => props.visible, (newVal, oldVal) => {
+  // When hiding, capture current height to preserve space
+  if (!newVal && oldVal && bubbleRef.value) {
+    preservedHeight.value = bubbleRef.value.offsetHeight
+  }
+})
+
+function onAfterLeave() {
+  emit('after-leave')
+}
 </script>
 
 <template>
   <div class="coach-container">
-    <!-- Coach Avatar -->
+    <!-- Coach Avatar (always visible) -->
     <div class="coach-avatar">
       <img :src="avatarSrc" alt="Coach" />
     </div>
     
-    <!-- Speech Bubble -->
-    <div class="bubble" :class="{ hidden: !visible }">
-      <!-- Tip pointing to avatar -->
-      <div v-if="showTip" class="tip">
-        <img :src="tipSrc" alt="" />
-      </div>
-      
-      <div class="bubble-content">
-        <!-- Header with classification + eval -->
-        <div v-if="headerText" class="bubble-header">
-          <div class="classification">
-            <img v-if="iconSrc" :src="iconSrc" alt="" class="classification-icon" />
-            <span class="classification-text">{{ headerText }}</span>
+    <!-- Bubble wrapper maintains space even when bubble is hidden -->
+    <div class="bubble-wrapper" :style="preservedHeight ? { minHeight: preservedHeight + 'px' } : {}">
+      <!-- Speech Bubble with transition -->
+      <Transition
+        name="bubble"
+        @after-leave="onAfterLeave"
+      >
+        <div v-if="visible" ref="bubbleRef" class="bubble">
+          <!-- Tip pointing to avatar -->
+          <div v-if="showTip" class="tip">
+            <img :src="tipSrc" alt="" />
           </div>
-          <div v-if="evalText" class="eval-badge">
-            <span>{{ evalText }}</span>
+          
+          <div class="bubble-content">
+            <!-- Header with classification + eval -->
+            <div v-if="headerText" class="bubble-header">
+              <div class="classification">
+                <img v-if="iconSrc" :src="iconSrc" alt="" class="classification-icon" />
+                <span class="classification-text">{{ headerText }}</span>
+              </div>
+              <div v-if="evalText" class="eval-badge">
+                <span>{{ evalText }}</span>
+              </div>
+            </div>
+            
+            <!-- Coach message -->
+            <p v-if="message" class="coach-message">{{ message }}</p>
+            
+            <!-- Fallback for empty -->
+            <p v-if="!headerText && !message" class="empty">No message</p>
           </div>
         </div>
-        
-        <!-- Coach message -->
-        <p v-if="message" class="coach-message">{{ message }}</p>
-        
-        <!-- Fallback for empty -->
-        <p v-if="!headerText && !message" class="empty">No message</p>
-      </div>
+      </Transition>
     </div>
   </div>
 </template>
@@ -78,20 +105,60 @@ const tipSrc = `${base}icons/misc/bubble-tip.svg`
   object-fit: cover;
 }
 
-.bubble {
+/* Wrapper maintains space when bubble is hidden */
+.bubble-wrapper {
   position: relative;
   flex: 1;
   max-width: 275px;
+  min-height: 80px;
+  margin-left: -6px;
+}
+
+.bubble {
+  position: relative;
+  width: 100%;
   background: #ffffff;
   border-radius: 10px;
   overflow: visible;
-  margin-left: -6px;
-  opacity: 1;
-  transition: opacity var(--motion-steady) var(--motion-ease-out-gentle);
 }
 
-.bubble.hidden {
+/* Bubble transition animations */
+.bubble-enter-active,
+.bubble-leave-active {
+  transition: 
+    opacity var(--motion-steady) var(--motion-ease-out-gentle),
+    transform var(--motion-steady) var(--motion-ease-out-gentle);
+}
+
+.bubble-enter-from {
   opacity: 0;
+  transform: translateX(-2rem);
+}
+
+.bubble-enter-to,
+.bubble-leave-from {
+  opacity: 1;
+  transform: translateX(0);
+}
+
+.bubble-leave-to {
+  opacity: 0;
+  transform: translateY(-3rem);
+}
+
+/* Respect reduced motion preferences */
+@media (prefers-reduced-motion: reduce) {
+  .bubble-enter-active,
+  .bubble-leave-active {
+    transition: opacity var(--motion-steady) var(--motion-ease-out-gentle);
+  }
+
+  .bubble-enter-from,
+  .bubble-enter-to,
+  .bubble-leave-from,
+  .bubble-leave-to {
+    transform: none;
+  }
 }
 
 .tip {

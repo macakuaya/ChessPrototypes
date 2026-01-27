@@ -19,3 +19,6 @@ export {
   ANIMATION_COLORS,
   skillHighlightCSS 
 } from './board-animations/index.js'
+
+// Transitions
+export { SwapTransition } from './transitions/index.js'

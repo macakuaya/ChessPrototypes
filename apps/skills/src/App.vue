@@ -73,6 +73,11 @@ const showCoachBubble = computed(() => {
   return true
 })
 
+// Called when coach bubble finishes its leave animation
+function onCoachBubbleLeave() {
+  // Ready to show a new bubble - will be implemented later
+}
+
 // Skill earned data - set at trigger time, not reactive during animation
 const skillEarnedData = ref({
   skillName: 'Rook Sacrifice',
@@ -920,7 +925,7 @@ function onContinueClick() {
   
   // Default behavior for other celebrations
   showBoardCelebration.value = false
-  // Keep Share and Continue buttons visible
+  showContinueButton.value = false
   showSkillEarned.value = false
   skillHighlightSquare.value = null
   showExplosion.value = false
@@ -1050,6 +1055,7 @@ onUnmounted(() => {
           message="Anderssen sacrificed a bishop, both rooks, and his queen to deliver checkmate!"
           :show-tip="true"
           :visible="showCoachBubble"
+          @after-leave="onCoachBubbleLeave"
         />
       </section>
 
