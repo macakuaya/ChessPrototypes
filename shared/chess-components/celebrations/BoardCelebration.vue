@@ -87,11 +87,11 @@ defineExpose({ canvasRef })
   gap: 12px;
 }
 
-/* Default: icon variant (smaller image) */
+/* Default: icon variant (smaller square image) */
 .celebration-image {
   position: relative;
   width: 33.33%;
-  aspect-ratio: 4 / 3;
+  aspect-ratio: 1;
 }
 
 /* Image variant (larger image for "You Earned a Skill Point") */
