@@ -1,11 +1,18 @@
 <script setup>
+import { ref } from 'vue'
+
 defineProps({
   visible: { type: Boolean, default: false },
   image: { type: String, default: null },
+  riveFile: { type: String, default: null }, // When provided, shows canvas instead of image
   title: { type: String, default: 'You Earned a Skill Point' },
   subtitle: { type: String, default: 'Keep reviewing until you master every skill' },
   variant: { type: String, default: 'icon' }, // 'icon' (small) or 'image' (large)
 })
+
+// Expose canvas ref so parent can initialize Rive
+const canvasRef = ref(null)
+defineExpose({ canvasRef })
 </script>
 
 <template>
@@ -14,9 +21,10 @@ defineProps({
       <div class="celebration-overlay"></div>
       <div class="celebration-container">
         <div class="celebration-content">
-          <!-- Image -->
-          <div v-if="image" class="celebration-image" :class="variant">
-            <img :src="image" :alt="title" />
+          <!-- Rive Animation or Static Image -->
+          <div v-if="riveFile || image" class="celebration-image" :class="variant">
+            <canvas v-if="riveFile" ref="canvasRef" class="rive-canvas"></canvas>
+            <img v-else-if="image" :src="image" :alt="title" />
           </div>
           
           <!-- Text -->
@@ -81,6 +89,7 @@ defineProps({
 
 /* Default: icon variant (smaller image) */
 .celebration-image {
+  position: relative;
   width: 33.33%;
   aspect-ratio: 4 / 3;
 }
@@ -90,13 +99,25 @@ defineProps({
   width: 100%;
   max-width: 360px;
   max-height: 270px;
+  aspect-ratio: 720 / 540;
 }
 
 .celebration-image img {
+  position: absolute;
+  inset: 0;
   width: 100%;
   height: 100%;
-  object-fit: contain;
+  object-fit: cover;
   pointer-events: none;
+}
+
+.celebration-image .rive-canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  transform: scale(1.2);
 }
 
 .celebration-text {

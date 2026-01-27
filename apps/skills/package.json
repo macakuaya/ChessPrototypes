@@ -12,8 +12,10 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "@chesscom/design-system": "^0.21.1",
-    "vue": "^3.5.26"
+    "@chesscom/design-system": "^0.21.2",
+    "@rive-app/canvas-lite": "^2.34.2",
+    "vue": "^3.5.26",
+    "vue3-lottie": "^3.3.1"
   },
   "devDependencies": {
     "@vitejs/plugin-vue": "^6.0.3",

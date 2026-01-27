@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
+import { ref, computed, onMounted, onUnmounted, watch, nextTick } from 'vue'
 import { CcButton, CcIcon } from '@chesscom/design-system'
 import '@chesscom/design-system/dist/variables.css'
 import '@chesscom/design-system/dist/cc-utils.css'
@@ -12,6 +12,7 @@ import SkillsBottomSheet from './components/SkillsBottomSheet.vue'
 import PrototypeMenu from './components/PrototypeMenu.vue'
 import { BoardCelebration, SkillEarned, SkillUnlockedModal, playSound } from '@chess/components'
 import { parsePGN, calculatePositions, boardToPieces, markBrilliantMoves } from './utils/chess.js'
+import { Rive } from '@rive-app/canvas-lite'
 
 const activePly = ref(0)
 const showSkillsSheet = ref(false)
@@ -41,12 +42,52 @@ const checkmateCount = ref(0)
 const showBoardCelebration = ref(false)
 const boardCelebrationData = ref({
   image: '',
+  riveFile: null, // Path to .riv file (replaces image when provided)
   title: 'You Earned a Skill Point',
   subtitle: 'Keep reviewing until you master every skill'
 })
 const hasShownFirstSkillCelebration = ref(false) // Track if we've shown the first skill celebration
 const showContinueButton = ref(false) // Show Continue button during celebration
 const endOfFtueCompleted = ref(false) // Track if End of FTUE celebration has been completed
+
+// Rive animation for board celebrations
+const boardCelebrationRef = ref(null)
+let riveInstance = null
+
+// Initialize/cleanup Rive when celebration visibility or riveFile changes
+watch([showBoardCelebration, () => boardCelebrationData.value.riveFile], async ([isVisible, riveFile]) => {
+  // Cleanup existing instance
+  if (riveInstance) {
+    riveInstance.cleanup()
+    riveInstance = null
+  }
+  
+  if (isVisible && riveFile) {
+    await nextTick()
+    
+    const canvas = boardCelebrationRef.value?.canvasRef
+    if (canvas) {
+      riveInstance = new Rive({
+        src: riveFile,
+        canvas: canvas,
+        autoplay: true,
+        onLoad: () => {
+          if (riveInstance) {
+            riveInstance.resizeDrawingSurfaceToCanvas()
+          }
+        }
+      })
+    }
+  }
+}, { immediate: true })
+
+// Cleanup Rive on unmount
+onUnmounted(() => {
+  if (riveInstance) {
+    riveInstance.cleanup()
+    riveInstance = null
+  }
+})
 const allSkillsMasteredCompleted = ref(false) // Track if All Skills Mastered celebration has been completed
 
 // Skill Unlocked Modal state
@@ -823,6 +864,7 @@ function onCounterComplete() {
     // This is the second rook sacrifice, will become 10/10 (mastery!)
     boardCelebrationData.value = {
       image: `${import.meta.env.BASE_URL}icons/skills/white_rook.png`,
+      riveFile: null,
       title: 'You Mastered a Skill!',
       subtitle: ''
     }
@@ -833,6 +875,7 @@ function onCounterComplete() {
   else if (selectedPrototype.value === 'all-skills-mastered' && currentSkillType.value === 'queen' && queenSacrificeCount.value === 9) {
     boardCelebrationData.value = {
       image: `${import.meta.env.BASE_URL}icons/skills/white_queen.png`,
+      riveFile: null,
       title: 'You Mastered a Skill!',
       subtitle: ''
     }
@@ -843,6 +886,7 @@ function onCounterComplete() {
   else if (selectedPrototype.value === 'end-of-ftue' && currentSkillType.value === 'checkmate' && checkmateCount.value === 9) {
     boardCelebrationData.value = {
       image: `${import.meta.env.BASE_URL}icons/skills/checkmate-dark.png`,
+      riveFile: null,
       title: 'You Mastered a Skill!',
       subtitle: ''
     }
@@ -855,7 +899,8 @@ function onCounterComplete() {
     
     // Show board celebration and continue button
     boardCelebrationData.value = {
-      image: `${import.meta.env.BASE_URL}icons/skills/skill-point-celebration.png`,
+      image: null,
+      riveFile: `${import.meta.env.BASE_URL}animations/skillcelebration.riv`,
       title: 'You Earned a Skill Point',
       subtitle: 'Keep reviewing until you master every skill'
     }
@@ -892,6 +937,7 @@ function onContinueClick() {
     // Transition from "You Mastered a Skill!" to "New Skills Unlocked!"
     boardCelebrationData.value = {
       image: 'https://www.chess.com/bundles/web/images/color-icons/commerce-gold.svg',
+      riveFile: null,
       title: 'New Skills Unlocked!',
       subtitle: ''
     }
@@ -960,6 +1006,7 @@ function onContinueClick() {
     // Transition to "New Skill Unlocked" celebration
     boardCelebrationData.value = {
       image: `${import.meta.env.BASE_URL}icons/skills/white_queen.png`,
+      riveFile: null,
       title: 'New Skill Unlocked',
       subtitle: ''
     }
@@ -1156,8 +1203,10 @@ onUnmounted(() => {
           
           <!-- Board Celebration Overlay -->
           <BoardCelebration
+            ref="boardCelebrationRef"
             :visible="showBoardCelebration"
             :image="boardCelebrationData.image"
+            :rive-file="boardCelebrationData.riveFile"
             :title="boardCelebrationData.title"
             :subtitle="boardCelebrationData.subtitle"
             :variant="boardCelebrationData.title === 'You Earned a Skill Point' ? 'image' : 'icon'"
