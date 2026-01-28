@@ -26,6 +26,10 @@ const props = defineProps({
   showShareButton: {
     type: Boolean,
     default: false
+  },
+  contentVisible: {
+    type: Boolean,
+    default: true
   }
 })
 
@@ -69,7 +73,7 @@ function handleShare() {
       <div class="modal-content">
         <div class="main-content">
           <!-- Skill Image or Lottie Animation -->
-          <div class="skill-image-container">
+          <div class="skill-image-container" :class="{ 'content-hidden': !contentVisible }">
             <img 
               v-if="skillImage" 
               :src="skillImage" 
@@ -82,7 +86,7 @@ function handleShare() {
           </div>
           
           <!-- Text Content -->
-          <div class="text-content">
+          <div class="text-content" :class="{ 'content-hidden': !contentVisible }">
             <div class="headline-container">
               <h1 class="skill-title">{{ skillName }}</h1>
             </div>
@@ -185,6 +189,12 @@ function handleShare() {
   aspect-ratio: 1 / 1;
   flex-shrink: 0;
   max-height: 366px;
+  opacity: 1;
+  transition: opacity 200ms cubic-bezier(0, 0, 0.4, 1);
+}
+
+.skill-image-container.content-hidden {
+  opacity: 0;
 }
 
 .skill-image {
@@ -225,6 +235,12 @@ function handleShare() {
   gap: 16px;
   max-width: 500px;
   width: 100%;
+  opacity: 1;
+  transition: opacity 200ms cubic-bezier(0, 0, 0.4, 1);
+}
+
+.text-content.content-hidden {
+  opacity: 0;
 }
 
 .headline-container {

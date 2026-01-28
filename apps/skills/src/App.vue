@@ -103,8 +103,10 @@ const skillUnlockedData = ref({
   skillDescription: 'A tactical move where you deliberately give up your queen to gain a decisive advantage, often leading to checkmate or winning material back.',
   skillImage: '',
   lottieFile: null,
-  showShareButton: false
+  showShareButton: false,
+  contentVisible: true
 })
+const twoMasteredSkillsPhase = ref(1) // Track which skill is showing: 1 = Queen Sacrifice, 2 = Skewer
 
 // Lottie animation for Skill Unlocked Modal
 const skillUnlockedModalRef = ref(null)
@@ -616,6 +618,7 @@ function initializePrototypeState(prototype) {
   showCoachBubble.value = true
   endOfFtueCompleted.value = false
   allSkillsMasteredCompleted.value = false
+  twoMasteredSkillsPhase.value = 1
   activePly.value = 0
   
   // Set initial state for specific prototypes
@@ -1092,7 +1095,8 @@ function onContinueClick() {
       skillDescription: 'Impressive! You completed all the challenges. Now go show off your new skills.',
       skillImage: '',
       lottieFile: `${import.meta.env.BASE_URL}animations/skill-complete.json`,
-      showShareButton: true
+      showShareButton: true,
+      contentVisible: true
     }
     showSkillUnlockedModal.value = true
     
@@ -1160,7 +1164,8 @@ function onContinueClick() {
             skillDescription: 'A tactical move where you deliberately give up your queen to gain a decisive advantage, often leading to checkmate or winning material back.',
             skillImage: '',
             lottieFile: null,
-            showShareButton: false
+            showShareButton: false,
+            contentVisible: true
           }
           showSkillUnlockedModal.value = true
           
@@ -1214,8 +1219,41 @@ function onContinueClick() {
 
 // Handle Skill Unlocked Modal continue
 function onSkillUnlockedContinue() {
+  // Two Mastered Skills: Show second skill (Skewer) after first (Queen Sacrifice)
+  if (selectedPrototype.value === 'two-mastered-skills' && twoMasteredSkillsPhase.value === 1) {
+    // Step 1: Fade out current content (200ms)
+    skillUnlockedData.value.contentVisible = false
+    
+    // Step 2: After fade out, change content and fade in
+    setTimeout(() => {
+      // Change to Skewer content
+      skillUnlockedData.value = {
+        skillName: 'Skewer',
+        skillDescription: 'A powerful tactic where you attack two enemy pieces in a line, forcing one to move and capturing the other behind it.',
+        skillImage: '',
+        lottieFile: null,
+        showShareButton: false,
+        contentVisible: false // Start hidden
+      }
+      
+      // Step 3: Fade in new content
+      setTimeout(() => {
+        skillUnlockedData.value.contentVisible = true
+        twoMasteredSkillsPhase.value = 2
+      }, 10)
+    }, 200)
+    
+    return
+  }
+  
+  // Default behavior: dismiss modal
   showSkillUnlockedModal.value = false
   showMoveList.value = true
+  
+  // Reset two mastered skills phase
+  if (selectedPrototype.value === 'two-mastered-skills') {
+    twoMasteredSkillsPhase.value = 1
+  }
   
   // Mark All Skills Mastered as completed so Queen Sacrifice shows as completed
   if (selectedPrototype.value === 'all-skills-mastered') {
@@ -1423,6 +1461,7 @@ onUnmounted(() => {
         :skill-image="skillUnlockedData.skillImage"
         :lottie-file="skillUnlockedData.lottieFile"
         :show-share-button="skillUnlockedData.showShareButton"
+        :content-visible="skillUnlockedData.contentVisible"
         @continue="onSkillUnlockedContinue"
         @close="onSkillUnlockedClose"
       />
