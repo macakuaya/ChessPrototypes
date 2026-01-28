@@ -7,6 +7,7 @@ const props = defineProps({
   headerIcon: { type: String, default: '' },
   headerText: { type: String, default: '' },
   evalText: { type: String, default: '' },
+  whiteAdvantage: { type: Boolean, default: true }, // true = white advantage (light badge), false = black advantage (orange badge)
   message: { type: String, default: '' },
   showTip: { type: Boolean, default: true },
   visible: { type: Boolean, default: true },
@@ -66,7 +67,7 @@ function onAfterLeave() {
                 <img v-if="iconSrc" :src="iconSrc" alt="" class="classification-icon" />
                 <span class="classification-text">{{ headerText }}</span>
               </div>
-              <div v-if="evalText" class="eval-badge">
+              <div v-if="evalText" class="eval-badge" :class="{ 'white-advantage': whiteAdvantage, 'black-advantage': !whiteAdvantage }">
                 <span>{{ evalText }}</span>
               </div>
             </div>
@@ -194,6 +195,7 @@ function onAfterLeave() {
   align-items: center;
   justify-content: space-between;
   gap: 12px;
+  width: 100%;
 }
 
 .classification {
@@ -219,7 +221,6 @@ function onAfterLeave() {
 }
 
 .eval-badge {
-  background: #4b4847;
   border-radius: 5px;
   padding: 4px 8px;
   flex-shrink: 0;
@@ -230,13 +231,28 @@ function onAfterLeave() {
   box-sizing: border-box;
 }
 
+.eval-badge.white-advantage {
+  background: #e8e6e3;
+}
+
+.eval-badge.black-advantage {
+  background: #d97b38;
+}
+
 .eval-badge span {
   font-family: 'SF Pro Text', -apple-system, system-ui, sans-serif;
   font-size: 14px;
   font-weight: 600;
   line-height: 16px;
-  color: #e7e6e5;
   white-space: nowrap;
+}
+
+.eval-badge.white-advantage span {
+  color: #312e2b;
+}
+
+.eval-badge.black-advantage span {
+  color: #ffffff;
 }
 
 .coach-message {
