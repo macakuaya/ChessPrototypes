@@ -195,7 +195,15 @@ const coachBubbleContent = computed(() => {
       message: currentEncouragingMessage.value
     }
   }
-  return originalBubbleContent
+  
+  // Dynamic commentary based on current ply
+  const commentary = immortalGameCommentary[activePly.value] || 
+    immortalGameCommentary[immortalGameCommentary.length - 1]
+  
+  return {
+    headerText: originalBubbleContent.headerText,
+    message: commentary
+  }
 })
 
 // Watch for celebrations that should hide the coach bubble
@@ -400,6 +408,102 @@ const immortalGameEvals = [
   'M1',   // 23. Be7# (checkmate)
 ]
 
+// Commentary for The Immortal Game - one entry per ply (0-45)
+const immortalGameCommentary = [
+  // Ply 0: Starting position
+  'One of the most famous chess games ever played.',
+  // Ply 1: 1. e4
+  'Anderssen opens with the King\'s Pawn - a fighting start.',
+  // Ply 2: 1...e5
+  'Kieseritzky matches with the classical response.',
+  // Ply 3: 2. f4
+  'The King\'s Gambit! White offers a pawn for rapid attack.',
+  // Ply 4: 2...exf4
+  'Black accepts the gambit, grabbing the pawn.',
+  // Ply 5: 3. Bc4
+  'The Bishop\'s Gambit - targeting the weak f7 square.',
+  // Ply 6: 3...Qh4+
+  'An aggressive queen check, but it may waste time.',
+  // Ply 7: 4. Kf1
+  'White loses castling rights but keeps the initiative.',
+  // Ply 8: 4...b5
+  'A bold counter-gambit trying to deflect the bishop.',
+  // Ply 9: 5. Bxb5
+  'Anderssen accepts, winning a pawn.',
+  // Ply 10: 5...Nf6
+  'Knight develops with tempo, attacking the e4 pawn.',
+  // Ply 11: 6. Nf3
+  'The knight defends and develops simultaneously.',
+  // Ply 12: 6...Qh6
+  'The queen retreats but stays active on the kingside.',
+  // Ply 13: 7. d3
+  'Solidifying the center and opening lines for the bishop.',
+  // Ply 14: 7...Nh5
+  'The knight eyes the f4 pawn and g3 square.',
+  // Ply 15: 8. Nh4
+  'White\'s knight leaps to attack Black\'s queen.',
+  // Ply 16: 8...Qg5
+  'The queen sidesteps, still eyeing White\'s kingside.',
+  // Ply 17: 9. Nf5
+  'A powerful outpost! The knight threatens multiple squares.',
+  // Ply 18: 9...c6
+  'Black tries to challenge the bishop on b5.',
+  // Ply 19: 10. g4
+  'Aggressive! White attacks the knight and gains space.',
+  // Ply 20: 10...Nf6
+  'The knight retreats to safety.',
+  // Ply 21: 11. Rg1
+  'The rook swings into action, preparing for attack.',
+  // Ply 22: 11...cxb5
+  'Black finally captures the bishop, winning material.',
+  // Ply 23: 12. h4
+  'White ignores material loss - the attack is everything!',
+  // Ply 24: 12...Qg6
+  'The queen dodges the advancing pawn.',
+  // Ply 25: 13. h5
+  'The pawn keeps pushing, harassing the queen.',
+  // Ply 26: 13...Qg5
+  'The queen has nowhere comfortable to go.',
+  // Ply 27: 14. Qf3
+  'The queen enters with deadly threats on f7 and the knight.',
+  // Ply 28: 14...Ng8
+  'The knight retreats all the way back - Black is passive.',
+  // Ply 29: 15. Bxf4
+  'White reclaims the gambit pawn with tempo.',
+  // Ply 30: 15...Qf6
+  'The queen centralizes, defending against threats.',
+  // Ply 31: 16. Nc3
+  'Another piece joins the attack.',
+  // Ply 32: 16...Bc5
+  'Black finally develops the bishop.',
+  // Ply 33: 17. Nd5
+  'The knight dominates from the center!',
+  // Ply 34: 17...Qxb2
+  'Black grabs another pawn, but danger looms.',
+  // Ply 35: 18. Bd6!!
+  'Brilliant! The bishop blocks escape - rook is sacrificed!',
+  // Ply 36: 18...Bxg1
+  'Black captures the rook, not seeing the full depth.',
+  // Ply 37: 19. e5!!
+  'The second rook is offered! Pure attacking genius.',
+  // Ply 38: 19...Qxa1+
+  'Black takes the second rook with check.',
+  // Ply 39: 20. Ke2
+  'The king calmly steps aside. The attack continues.',
+  // Ply 40: 20...Na6
+  'Black tries to bring in reinforcements, but it\'s too late.',
+  // Ply 41: 21. Nxg7+
+  'The knight delivers check, opening lines.',
+  // Ply 42: 21...Kd8
+  'The king flees, but there\'s no escape.',
+  // Ply 43: 22. Qf6+!!
+  'The queen sacrifice! Checkmate is now unstoppable.',
+  // Ply 44: 22...Nxf6
+  'Black must take the queen.',
+  // Ply 45: 23. Be7#
+  'Checkmate! The Immortal Game concludes in glory.',
+]
+
 // Computed pieces based on current ply
 const pieces = computed(() => {
   if (!positions.value.length || activePly.value < 0) return []
@@ -523,6 +627,9 @@ function playNextMoves() {
   
   isPlaying.value = true
   
+  // Hide coach bubble while auto-playing
+  showCoachBubble.value = false
+  
   playInterval = setInterval(() => {
     activePly.value++
     
@@ -534,6 +641,9 @@ function playNextMoves() {
       clearInterval(playInterval)
       playInterval = null
       isPlaying.value = false
+      
+      // Show coach bubble again when stopping at a key moment
+      showCoachBubble.value = true
     }
   }, 100)
 }
@@ -1049,25 +1159,36 @@ function onContinueClick() {
       setTimeout(() => {
         boardCelebrationData.value.contentVisible = true
         
-        // Step 4: After 2000ms, auto-dismiss celebration
+        // Step 4: After 2000ms, show hero modal instead of dismissing
         setTimeout(() => {
           showSkillEarned.value = false
           skillHighlightSquare.value = null
           showExplosion.value = false
           showContinueButton.value = false
           
-          // Update counter
+          // Update counter and mark FTUE as completed
           checkmateCount.value++
-          
-          // Mark end of FTUE as completed
           endOfFtueCompleted.value = true
-          
-          showBoardCelebration.value = false
-          showMoveList.value = true
           
           // Clear animation state
           currentAnimatingPly.value = null
           currentSkillType.value = null
+          
+          // Show hero modal with Queen Sacrifice
+          skillUnlockedData.value = {
+            skillName: 'Queen Sacrifice',
+            skillDescription: 'A tactical move where you deliberately give up your queen to gain a decisive advantage, often leading to checkmate or winning material back.',
+            skillImage: '',
+            lottieFile: null,
+            showShareButton: false,
+            contentVisible: true
+          }
+          showSkillUnlockedModal.value = true
+          
+          // Hide board celebration after modal slides in
+          setTimeout(() => {
+            showBoardCelebration.value = false
+          }, 250)
         }, 2000)
       }, 10)
     }, 200)
@@ -1223,8 +1344,8 @@ function onContinueClick() {
 
 // Handle Skill Unlocked Modal continue
 function onSkillUnlockedContinue() {
-  // Two Mastered Skills: Show second skill (Skewer) after first (Queen Sacrifice)
-  if (selectedPrototype.value === 'two-mastered-skills' && twoMasteredSkillsPhase.value === 1) {
+  // Two Mastered Skills OR End of FTUE: Show second skill (Skewer) after first (Queen Sacrifice)
+  if ((selectedPrototype.value === 'two-mastered-skills' || selectedPrototype.value === 'end-of-ftue') && twoMasteredSkillsPhase.value === 1) {
     // Step 1: Fade out current content (200ms)
     skillUnlockedData.value.contentVisible = false
     
@@ -1254,8 +1375,8 @@ function onSkillUnlockedContinue() {
   showSkillUnlockedModal.value = false
   showMoveList.value = true
   
-  // Reset two mastered skills phase
-  if (selectedPrototype.value === 'two-mastered-skills') {
+  // Reset two mastered skills phase (used by both two-mastered-skills and end-of-ftue)
+  if (selectedPrototype.value === 'two-mastered-skills' || selectedPrototype.value === 'end-of-ftue') {
     twoMasteredSkillsPhase.value = 1
   }
   
