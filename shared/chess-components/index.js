@@ -22,3 +22,6 @@ export {
 
 // Transitions
 export { SwapTransition } from './transitions/index.js'
+
+// Coach
+export { CoachBubble } from './coach/index.js'
