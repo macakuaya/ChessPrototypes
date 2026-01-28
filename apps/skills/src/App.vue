@@ -333,11 +333,15 @@ const currentSkillsList = computed(() => {
   return skillsList.value
 })
 
-// Check if tabs should be shown (hidden for FTUE-style prototypes, but shown after End of FTUE celebration)
+// Check if tabs should be shown (now shown for all prototypes, including FTUE)
 const showSkillsTabs = computed(() => {
-  if (selectedPrototype.value === 'ftue') return false
-  if (selectedPrototype.value === 'end-of-ftue') return endOfFtueCompleted.value
   return true
+})
+
+// Initial tab for Skills Bottom Sheet (Fundamentals for FTUE and End of FTUE, Tactics for others)
+const skillsInitialTab = computed(() => {
+  if (selectedPrototype.value === 'ftue' || selectedPrototype.value === 'end-of-ftue') return 'fundamentals'
+  return 'tactics'
 })
 
 // Game data
@@ -1413,6 +1417,7 @@ onUnmounted(() => {
         :open="showSkillsSheet" 
         :skills="currentSkillsList"
         :show-tabs="showSkillsTabs"
+        :initial-tab="skillsInitialTab"
         class="skills-sheet"
         @close="showSkillsSheet = false"
       />

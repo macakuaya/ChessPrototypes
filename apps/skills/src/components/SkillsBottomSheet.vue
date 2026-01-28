@@ -1,9 +1,10 @@
 <script setup>
-import { ref } from 'vue'
+import { ref, watch, onMounted, onUnmounted, nextTick } from 'vue'
 
 const props = defineProps({
   open: { type: Boolean, default: true },
-  showTabs: { type: Boolean, default: true }, // Hide tabs for FTUE
+  showTabs: { type: Boolean, default: true },
+  initialTab: { type: String, default: 'tactics' }, // Default active tab
   skills: { 
     type: Array, 
     default: () => [
@@ -22,8 +23,45 @@ const props = defineProps({
 
 const emit = defineEmits(['close'])
 
-const activeTab = ref('tactics')
+const activeTab = ref(props.initialTab)
 const isExpanded = ref(false)
+
+// Reset active tab when initialTab prop changes
+watch(() => props.initialTab, (newTab) => {
+  activeTab.value = newTab
+})
+
+// Tabs scroll state
+const tabsContainerRef = ref(null)
+const isScrolledToEnd = ref(false)
+
+function checkScrollEnd() {
+  const container = tabsContainerRef.value
+  if (!container) return
+  
+  const threshold = 10 // pixels from end to consider "at end"
+  const isAtEnd = container.scrollLeft + container.clientWidth >= container.scrollWidth - threshold
+  isScrolledToEnd.value = isAtEnd
+}
+
+function onTabsScroll() {
+  checkScrollEnd()
+}
+
+// Check scroll position when component mounts and when tabs become visible
+onMounted(() => {
+  nextTick(() => {
+    checkScrollEnd()
+  })
+})
+
+watch(() => props.showTabs, (show) => {
+  if (show) {
+    nextTick(() => {
+      checkScrollEnd()
+    })
+  }
+})
 
 // Drag state
 const isDragging = ref(false)
@@ -31,6 +69,7 @@ const dragStartY = ref(0)
 const dragCurrentY = ref(0)
 
 const tabs = [
+  { id: 'fundamentals', label: 'Fundamentals' },
   { id: 'openings', label: 'Openings' },
   { id: 'tactics', label: 'Tactics' },
   { id: 'strategy', label: 'Strategy' },
@@ -124,16 +163,23 @@ function onTapToggle() {
       </div>
       
       <!-- Tabs (hidden for FTUE) -->
-      <div v-if="showTabs" class="tabs-container">
-        <button
-          v-for="tab in tabs"
-          :key="tab.id"
-          class="tab"
-          :class="{ active: activeTab === tab.id }"
-          @click="activeTab = tab.id"
+      <div v-if="showTabs" class="tabs-wrapper">
+        <div 
+          ref="tabsContainerRef"
+          class="tabs-container"
+          @scroll="onTabsScroll"
         >
-          {{ tab.label }}
-        </button>
+          <button
+            v-for="tab in tabs"
+            :key="tab.id"
+            class="tab"
+            :class="{ active: activeTab === tab.id }"
+            @click="activeTab = tab.id"
+          >
+            {{ tab.label }}
+          </button>
+        </div>
+        <div class="tabs-fade-mask" :class="{ hidden: isScrolledToEnd }"></div>
       </div>
     </div>
     
@@ -259,14 +305,29 @@ function onTapToggle() {
 }
 
 /* Tabs */
+.tabs-wrapper {
+  position: relative;
+  height: 56px;
+  overflow: hidden;
+}
+
 .tabs-container {
   display: flex;
   height: 56px;
   padding: 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  /* Hide scrollbar */
+  scrollbar-width: none; /* Firefox */
+  -ms-overflow-style: none; /* IE/Edge */
+}
+
+.tabs-container::-webkit-scrollbar {
+  display: none; /* Chrome, Safari, Opera */
 }
 
 .tab {
-  flex: 1;
+  flex-shrink: 0;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -282,6 +343,7 @@ function onTapToggle() {
   color: rgba(255, 255, 255, 0.72);
   cursor: pointer;
   transition: color 150ms ease, border-color 150ms ease;
+  white-space: nowrap;
 }
 
 .tab:hover {
@@ -291,6 +353,23 @@ function onTapToggle() {
 .tab.active {
   color: rgba(255, 255, 255, 0.85);
   border-bottom-color: #81b64c;
+}
+
+/* Fade mask to indicate scrollable content */
+.tabs-fade-mask {
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 80px;
+  height: 100%;
+  background: linear-gradient(to right, transparent, #262421);
+  pointer-events: none;
+  opacity: 1;
+  transition: opacity 200ms ease-out;
+}
+
+.tabs-fade-mask.hidden {
+  opacity: 0;
 }
 
 /* Skills Container */
