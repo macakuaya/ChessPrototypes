@@ -1105,51 +1105,72 @@ function onContinueClick() {
   }
   
   if (isMasteryCelebration) {
-    // Transition to "New Skill Unlocked" celebration
-    boardCelebrationData.value = {
-      image: `${import.meta.env.BASE_URL}icons/skills/white_queen.png`,
-      riveFile: null,
-      title: 'New Skill Unlocked',
-      subtitle: '',
-      contentVisible: true
-    }
-    // Keep buttons visible during transition
-    // showContinueButton.value stays true
+    // Step 1: Fade out current content (200ms)
+    boardCelebrationData.value.contentVisible = false
     
-    // After 2000ms, show the hero modal
+    // Step 2: After fade out, change content and fade in
     setTimeout(() => {
-      // Hide buttons but keep board celebration visible during modal slide-in
-      showSkillEarned.value = false
-      skillHighlightSquare.value = null
-      showExplosion.value = false
-      showContinueButton.value = false
-      
-      // Update counter
-      rookSacrificeCount.value++
-      
-      // Mark ply as revealed
-      if (savedPly && !revealedSkillPlies.value.includes(savedPly)) {
-        revealedSkillPlies.value = [...revealedSkillPlies.value, savedPly]
+      // Change content based on prototype
+      if (selectedPrototype.value === 'two-mastered-skills') {
+        // Two Mastered Skills: Show "New Skills Unlocked!" with star icon (like End of FTUE)
+        boardCelebrationData.value = {
+          image: 'https://www.chess.com/bundles/web/images/color-icons/commerce-gold.svg',
+          riveFile: null,
+          title: 'New Skills Unlocked!',
+          subtitle: '',
+          contentVisible: false // Start hidden
+        }
+      } else {
+        // Mastered Skill: Show "New Skill Unlocked" with queen icon
+        boardCelebrationData.value = {
+          image: `${import.meta.env.BASE_URL}icons/skills/white_queen.png`,
+          riveFile: null,
+          title: 'New Skill Unlocked',
+          subtitle: '',
+          contentVisible: false // Start hidden
+        }
       }
       
-      currentAnimatingPly.value = null
-      currentSkillType.value = null
-      
-      // Show the hero modal
-      skillUnlockedData.value = {
-        skillName: 'Queen Sacrifice',
-        skillDescription: 'A tactical move where you deliberately give up your queen to gain a decisive advantage, often leading to checkmate or winning material back.',
-        skillImage: '',
-        lottieFile: null,
-        showShareButton: false
-      }
-      showSkillUnlockedModal.value = true
-      
-      // Hide board celebration after modal slide-in completes (250ms)
+      // Step 3: Fade in new content
       setTimeout(() => {
-        showBoardCelebration.value = false
-      }, 250)
-    }, 2000)
+        boardCelebrationData.value.contentVisible = true
+        
+        // Step 4: After 2000ms, show the hero modal
+        setTimeout(() => {
+          // Hide buttons but keep board celebration visible during modal slide-in
+          showSkillEarned.value = false
+          skillHighlightSquare.value = null
+          showExplosion.value = false
+          showContinueButton.value = false
+          
+          // Update counter
+          rookSacrificeCount.value++
+          
+          // Mark ply as revealed
+          if (savedPly && !revealedSkillPlies.value.includes(savedPly)) {
+            revealedSkillPlies.value = [...revealedSkillPlies.value, savedPly]
+          }
+          
+          currentAnimatingPly.value = null
+          currentSkillType.value = null
+          
+          // Show the hero modal
+          skillUnlockedData.value = {
+            skillName: 'Queen Sacrifice',
+            skillDescription: 'A tactical move where you deliberately give up your queen to gain a decisive advantage, often leading to checkmate or winning material back.',
+            skillImage: '',
+            lottieFile: null,
+            showShareButton: false
+          }
+          showSkillUnlockedModal.value = true
+          
+          // Hide board celebration after modal slide-in completes (250ms)
+          setTimeout(() => {
+            showBoardCelebration.value = false
+          }, 250)
+        }, 2000)
+      }, 10)
+    }, 200)
     
     return
   }
