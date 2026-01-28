@@ -177,7 +177,7 @@ function getRandomEncouragingMessage() {
 
 // Original bubble content
 const originalBubbleContent = {
-  headerText: 'The Immortal Game (1851)',
+  headerText: 'The Immortal Game',
   message: 'Anderssen sacrificed a bishop, both rooks, and his queen to deliver checkmate!'
 }
 
@@ -201,7 +201,7 @@ const coachBubbleContent = computed(() => {
     immortalGameCommentary[immortalGameCommentary.length - 1]
   
   return {
-    headerText: originalBubbleContent.headerText,
+    headerText: moveClassificationText.value,
     message: commentary
   }
 })
@@ -547,6 +547,264 @@ const evalBarWidths = computed(() => {
   const blackWidth = maxWidth - whiteWidth
   
   return { blackWidth, whiteWidth }
+})
+
+// Convert evaluation to expected points (win probability for White)
+// Using sigmoid function: 1 / (1 + 10^(-eval/4))
+function evalToExpectedPoints(ev) {
+  if (typeof ev === 'string' && ev.startsWith('M')) {
+    return 1.0 // Mate = 100% win
+  }
+  return 1 / (1 + Math.pow(10, -ev / 4))
+}
+
+// Get numeric eval value (handles mate strings)
+function getNumericEval(ev) {
+  if (typeof ev === 'string' && ev.startsWith('M')) {
+    return 15 // Treat mate as very high eval
+  }
+  return ev || 0
+}
+
+// Position assessment thresholds (from moving player's perspective)
+const WINNING_THRESHOLD = 2.0    // Clearly winning
+const EQUAL_THRESHOLD = 0.5     // Roughly equal position
+const LOSING_THRESHOLD = -2.0   // Clearly losing
+
+// Assess position from a player's perspective
+function assessPosition(ev, isWhite) {
+  const adjustedEval = isWhite ? ev : -ev
+  if (adjustedEval >= WINNING_THRESHOLD) return 'winning'
+  if (adjustedEval <= LOSING_THRESHOLD) return 'losing'
+  if (Math.abs(adjustedEval) <= EQUAL_THRESHOLD) return 'equal'
+  return adjustedEval > 0 ? 'slight_advantage' : 'slight_disadvantage'
+}
+
+// Material balance at each ply for The Immortal Game
+// Positive = White has more material, values in pawns (Q=9, R=5, B=3, N=3, P=1)
+const immortalGameMaterial = [
+  0,    // Starting position (equal)
+  0,    // 1. e4
+  0,    // 1...e5
+  0,    // 2. f4
+  1,    // 2...exf4 (Black captures pawn)
+  1,    // 3. Bc4
+  1,    // 3...Qh4+
+  1,    // 4. Kf1
+  1,    // 4...b5
+  0,    // 5. Bxb5 (White captures pawn, equal)
+  0,    // 5...Nf6
+  0,    // 6. Nf3
+  0,    // 6...Qh6
+  0,    // 7. d3
+  0,    // 7...Nh5
+  0,    // 8. Nh4
+  0,    // 8...Qg5
+  0,    // 9. Nf5
+  0,    // 9...c6
+  0,    // 10. g4
+  0,    // 10...Nf6
+  0,    // 11. Rg1
+  -3,   // 11...cxb5 (Black captures bishop)
+  -3,   // 12. h4
+  -3,   // 12...Qg6
+  -3,   // 13. h5
+  -3,   // 13...Qg5
+  -3,   // 14. Qf3
+  -3,   // 14...Ng8
+  -3,   // 15. Bxf4
+  -3,   // 15...Qf6
+  -3,   // 16. Nc3
+  -3,   // 16...Bc5
+  -3,   // 17. Nd5
+  -3,   // 17...Qxb2
+  -3,   // 18. Bd6!! (rook sacrifice offered)
+  -8,   // 18...Bxg1 (Black takes rook! -5 more)
+  -8,   // 19. e5!! (second rook sacrifice offered)
+  -13,  // 19...Qxa1+ (Black takes second rook! -5 more)
+  -13,  // 20. Ke2
+  -13,  // 20...Na6
+  -13,  // 21. Nxg7+
+  -13,  // 21...Kd8
+  -22,  // 22. Qf6+!! (queen sacrifice! -9 more)
+  -22,  // 22...Nxf6
+  -22,  // 23. Be7# (checkmate - material doesn't matter!)
+]
+
+// Calculate move classification based on expected points lost
+const moveClassification = computed(() => {
+  // Need at least ply 1 to have a previous position
+  if (activePly.value === 0) {
+    return 'classification-book' // Starting position
+  }
+  
+  const ply = activePly.value
+  const prevEvalIndex = Math.min(ply - 1, immortalGameEvals.length - 1)
+  const currEvalIndex = Math.min(ply, immortalGameEvals.length - 1)
+  
+  const prevEval = immortalGameEvals[prevEvalIndex] || 0
+  const currEval = immortalGameEvals[currEvalIndex] || 0
+  const prevEvalNum = getNumericEval(prevEval)
+  const currEvalNum = getNumericEval(currEval)
+  
+  // Determine who just moved (White moves on odd plies, Black on even)
+  const whiteJustMoved = ply % 2 === 1
+  
+  // Get material balance
+  const prevMaterial = immortalGameMaterial[prevEvalIndex] || 0
+  const currMaterial = immortalGameMaterial[currEvalIndex] || 0
+  const materialChange = currMaterial - prevMaterial
+  
+  // Did the moving player sacrifice material?
+  // For White: negative material change = sacrifice
+  // For Black: positive material change = sacrifice
+  const sacrificedMaterial = whiteJustMoved ? materialChange < -2 : materialChange > 2
+  
+  // Position assessment before and after
+  const prevPosition = assessPosition(prevEvalNum, whiteJustMoved)
+  const currPosition = assessPosition(currEvalNum, whiteJustMoved)
+  
+  // Calculate expected points
+  const prevExpectedPoints = evalToExpectedPoints(prevEvalNum)
+  const currExpectedPoints = evalToExpectedPoints(currEvalNum)
+  
+  // Calculate points lost from the moving player's perspective
+  let pointsLost
+  if (whiteJustMoved) {
+    pointsLost = prevExpectedPoints - currExpectedPoints
+  } else {
+    pointsLost = currExpectedPoints - prevExpectedPoints
+  }
+  
+  // ============================================
+  // EXPLICIT OVERRIDES FOR THE IMMORTAL GAME
+  // Key moves with specific classifications
+  // ============================================
+  const brilliantMoves = [35, 37, 43] // 18. Bd6!!, 19. e5!!, 22. Qf6+!!
+  const greatMoves = [45] // 23. Be7# (checkmate)
+  
+  if (brilliantMoves.includes(ply)) {
+    return 'classification-brilliant'
+  }
+  if (greatMoves.includes(ply)) {
+    return 'classification-great-find'
+  }
+  
+  // ============================================
+  // SPECIAL CLASSIFICATION: BRILLIANT
+  // A good piece sacrifice where:
+  // 1. Material was sacrificed (piece given up)
+  // 2. Position is not bad after the move
+  // 3. Position was not completely winning before
+  // ============================================
+  if (sacrificedMaterial) {
+    const notBadAfter = currPosition !== 'losing' && currPosition !== 'slight_disadvantage'
+    const notAlreadyWinning = prevPosition !== 'winning'
+    
+    if (notBadAfter && (notAlreadyWinning || pointsLost <= 0.05)) {
+      return 'classification-brilliant'
+    }
+  }
+  
+  // ============================================
+  // SPECIAL CLASSIFICATION: GREAT MOVE
+  // Critical game-changing moves:
+  // - Turning losing → equal
+  // - Turning equal → winning
+  // - Finding the only good move
+  // ============================================
+  const positionImproved = pointsLost < -0.1 // Significant improvement
+  const losingToEqual = (prevPosition === 'losing' || prevPosition === 'slight_disadvantage') && 
+                        (currPosition === 'equal' || currPosition === 'slight_advantage' || currPosition === 'winning')
+  const equalToWinning = (prevPosition === 'equal' || prevPosition === 'slight_advantage') && 
+                         currPosition === 'winning'
+  
+  if (positionImproved && (losingToEqual || equalToWinning)) {
+    return 'classification-great-find'
+  }
+  
+  // ============================================
+  // SPECIAL CLASSIFICATION: MISS
+  // Opponent made a mistake but current player didn't capitalize:
+  // - Previous move was a blunder/mistake by opponent
+  // - Current player didn't improve position as much as possible
+  // ============================================
+  if (ply >= 2) {
+    const twoPliesAgoIndex = Math.min(ply - 2, immortalGameEvals.length - 1)
+    const twoPliesAgoEval = getNumericEval(immortalGameEvals[twoPliesAgoIndex] || 0)
+    
+    // Calculate how much opponent lost on their last move
+    let opponentPointsLost
+    if (whiteJustMoved) {
+      // Black just moved before us (ply - 1)
+      opponentPointsLost = evalToExpectedPoints(currEvalNum) - evalToExpectedPoints(twoPliesAgoEval)
+    } else {
+      opponentPointsLost = evalToExpectedPoints(twoPliesAgoEval) - evalToExpectedPoints(currEvalNum)
+    }
+    
+    // If opponent blundered (lost > 0.15 points) but we didn't improve much
+    if (opponentPointsLost > 0.15 && pointsLost > 0.05) {
+      return 'classification-miss'
+    }
+  }
+  
+  // ============================================
+  // STANDARD CLASSIFICATIONS (by expected points lost)
+  // ============================================
+  if (pointsLost <= 0) {
+    return 'classification-best'
+  } else if (pointsLost <= 0.02) {
+    return 'classification-excellent'
+  } else if (pointsLost <= 0.05) {
+    return 'classification-good'
+  } else if (pointsLost <= 0.10) {
+    return 'classification-inaccuracy'
+  } else if (pointsLost <= 0.20) {
+    return 'classification-mistake'
+  } else {
+    return 'classification-blunder'
+  }
+})
+
+// Get human-readable classification label from icon name
+function getClassificationLabel(iconName) {
+  const labels = {
+    'classification-best': 'Best',
+    'classification-excellent': 'Excellent',
+    'classification-good': 'Good',
+    'classification-inaccuracy': 'Inaccuracy',
+    'classification-mistake': 'Mistake',
+    'classification-blunder': 'Blunder',
+    'classification-brilliant': 'Brilliant',
+    'classification-great-find': 'Great',
+    'classification-miss': 'Miss',
+    'classification-book': 'Book'
+  }
+  return labels[iconName] || ''
+}
+
+// Get current move notation
+const currentMoveNotation = computed(() => {
+  if (activePly.value <= 0) return null
+  const moveIndex = Math.floor((activePly.value - 1) / 2)
+  const isBlackMove = (activePly.value - 1) % 2 === 1
+  
+  if (moveIndex >= moveList.value.length) return null
+  
+  const move = moveList.value[moveIndex]
+  return isBlackMove ? move.black : move.white
+})
+
+// Computed header text showing move and classification
+const moveClassificationText = computed(() => {
+  if (activePly.value === 0) return 'The Immortal Game'
+  
+  const move = currentMoveNotation.value
+  const label = getClassificationLabel(moveClassification.value)
+  
+  if (!move || !label) return 'The Immortal Game'
+  
+  return `${move} is ${label}`
 })
 
 // Skill moves for different prototypes
@@ -1468,9 +1726,10 @@ onUnmounted(() => {
 
       <section class="coach-area">
         <CoachBubble 
-          :header-icon="coachBubbleMode === 'original' ? navIcons.brilliant : ''"
+          :header-icon="coachBubbleMode === 'original' ? moveClassification : ''"
           :header-text="coachBubbleContent.headerText"
-          eval-text=""
+          :eval-text="coachBubbleMode === 'original' ? evalText : ''"
+          :white-advantage="evalBarWidths.whiteWidth > evalBarWidths.blackWidth"
           :message="coachBubbleContent.message"
           :show-tip="true"
           :visible="showCoachBubble"

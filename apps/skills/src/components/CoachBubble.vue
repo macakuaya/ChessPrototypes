@@ -1,5 +1,6 @@
 <script setup>
 import { computed, ref, watch } from 'vue'
+import { CcIcon } from '@chesscom/design-system'
 
 const base = import.meta.env.BASE_URL
 
@@ -18,8 +19,8 @@ const emit = defineEmits(['after-leave'])
 // Ref for measuring bubble element
 const bubbleRef = ref(null)
 
-// Default to brilliant icon if no icon specified
-const iconSrc = computed(() => props.headerIcon || `${base}icons/move-classifications/brilliant.svg`)
+// Default to classification-brilliant icon if no icon specified
+const iconName = computed(() => props.headerIcon || 'classification-brilliant')
 const avatarSrc = `${base}icons/misc/coach-avatar.png`
 const tipSrc = `${base}icons/misc/bubble-tip.svg`
 
@@ -64,7 +65,7 @@ function onAfterLeave() {
             <!-- Header with classification + eval -->
             <div v-if="headerText" class="bubble-header">
               <div class="classification">
-                <img v-if="iconSrc" :src="iconSrc" alt="" class="classification-icon" />
+                <cc-icon v-if="iconName" :name="iconName" variant="color" class="classification-icon" />
                 <span class="classification-text">{{ headerText }}</span>
               </div>
               <div v-if="evalText" class="eval-badge" :class="{ 'white-advantage': whiteAdvantage, 'black-advantage': !whiteAdvantage }">
