@@ -326,6 +326,7 @@ const currentSkillsList = computed(() => {
     return endOfFtueSkillsList.value
   }
   if (selectedPrototype.value === 'mastered-skill') return masteredSkillSkillsList.value
+  if (selectedPrototype.value === 'two-mastered-skills') return masteredSkillSkillsList.value
   if (selectedPrototype.value === 'all-skills-mastered') return allSkillsMasteredSkillsList.value
   return skillsList.value
 })
@@ -450,6 +451,7 @@ function getSkillMoves() {
   if (selectedPrototype.value === 'ftue') return ftueMoves
   if (selectedPrototype.value === 'end-of-ftue') return endOfFtueMoves
   if (selectedPrototype.value === 'mastered-skill') return masteredSkillMoves
+  if (selectedPrototype.value === 'two-mastered-skills') return masteredSkillMoves
   if (selectedPrototype.value === 'all-skills-mastered') return allSkillsMasteredMoves
   return skillPointEarnedMoves
 }
@@ -621,6 +623,8 @@ function initializePrototypeState(prototype) {
     checkmateCount.value = 9 // Start at 9/10
   } else if (prototype === 'mastered-skill') {
     rookSacrificeCount.value = 8 // Start at 8/10, will master after 2 sacrifices
+  } else if (prototype === 'two-mastered-skills') {
+    rookSacrificeCount.value = 8 // Start at 8/10, will master after 2 sacrifices
   } else if (prototype === 'all-skills-mastered') {
     queenSacrificeCount.value = 9 // Start at 9/10, completing this masters ALL skills
   }
@@ -667,6 +671,16 @@ watch(activePly, (newPly, oldPly) => {
       }
     } else if (selectedPrototype.value === 'mastered-skill') {
       // Mastered Skill - rook sacrifices starting at 8/10
+      // 18. Bd6 (ply 35) - first rook sacrifice (8 → 9)
+      if (newPly === 35 && rookSacrificeCount.value === 8 && !showSkillEarned.value) {
+        triggerSkillEarned('d6', 35, 'rook')
+      }
+      // 19. e5 (ply 37) - second rook sacrifice (9 → 10, mastery!)
+      if (newPly === 37 && rookSacrificeCount.value === 9 && !showSkillEarned.value) {
+        triggerSkillEarned('e5', 37, 'rook')
+      }
+    } else if (selectedPrototype.value === 'two-mastered-skills') {
+      // Two Mastered Skills - rook sacrifices starting at 8/10
       // 18. Bd6 (ply 35) - first rook sacrifice (8 → 9)
       if (newPly === 35 && rookSacrificeCount.value === 8 && !showSkillEarned.value) {
         triggerSkillEarned('d6', 35, 'rook')
@@ -740,6 +754,13 @@ watch(activePly, (newPly, oldPly) => {
       }
     } else if (selectedPrototype.value === 'mastered-skill') {
       // Mastered Skill plies: 35, 37
+      if (newPly < 35) {
+        resetAnimationState()
+      } else if (newPly < 37) {
+        resetAnimationState()
+      }
+    } else if (selectedPrototype.value === 'two-mastered-skills') {
+      // Two Mastered Skills plies: 35, 37
       if (newPly < 35) {
         resetAnimationState()
       } else if (newPly < 37) {
@@ -925,7 +946,7 @@ function closeBoardCelebration() {
 // Handle counter animation complete - show celebration for first skill or mastery
 function onCounterComplete() {
   // Check for mastery celebration (skill reaches 10/10)
-  if (selectedPrototype.value === 'mastered-skill' && currentSkillType.value === 'rook' && rookSacrificeCount.value === 9) {
+  if ((selectedPrototype.value === 'mastered-skill' || selectedPrototype.value === 'two-mastered-skills') && currentSkillType.value === 'rook' && rookSacrificeCount.value === 9) {
     // This is the second rook sacrifice, will become 10/10 (mastery!)
     boardCelebrationData.value = {
       image: `${import.meta.env.BASE_URL}icons/skills/white_rook.png`,
@@ -987,8 +1008,8 @@ function onContinueClick() {
   const savedSquare = skillHighlightSquare.value
   const savedSkillType = currentSkillType.value
   
-  // Check if this is a mastery celebration (mastered-skill prototype, second rook sacrifice)
-  const isMasteryCelebration = selectedPrototype.value === 'mastered-skill' && 
+  // Check if this is a mastery celebration (mastered-skill or two-mastered-skills prototype, second rook sacrifice)
+  const isMasteryCelebration = (selectedPrototype.value === 'mastered-skill' || selectedPrototype.value === 'two-mastered-skills') && 
     savedSkillType === 'rook' && 
     rookSacrificeCount.value === 9
   

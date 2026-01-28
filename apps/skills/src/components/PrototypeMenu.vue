@@ -16,6 +16,7 @@ const examples = [
   { id: 'ftue', label: 'FTUE' },
   { id: 'end-of-ftue', label: 'End of FTUE' },
   { id: 'mastered-skill', label: 'Mastered Skill' },
+  { id: 'two-mastered-skills', label: 'Two Mastered Skills' },
   { id: 'all-skills-mastered', label: 'All Skills Mastered' },
 ]
 
