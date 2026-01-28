@@ -901,7 +901,7 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <div class="app">
+  <div class="app dark-mode">
     <div class="layout">
       <!-- Left: Chessboard -->
       <div class="board-section">

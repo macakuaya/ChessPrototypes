@@ -45,7 +45,8 @@ const boardCelebrationData = ref({
   image: '',
   riveFile: null, // Path to .riv file (replaces image when provided)
   title: 'You Earned a Skill Point',
-  subtitle: 'Keep reviewing until you master every skill'
+  subtitle: 'Keep reviewing until you master every skill',
+  contentVisible: true // For content fade transitions
 })
 const hasShownFirstSkillCelebration = ref(false) // Track if we've shown the first skill celebration
 const showContinueButton = ref(false) // Show Continue button during celebration
@@ -930,7 +931,8 @@ function onCounterComplete() {
       image: `${import.meta.env.BASE_URL}icons/skills/white_rook.png`,
       riveFile: null,
       title: 'You Mastered a Skill!',
-      subtitle: ''
+      subtitle: '',
+      contentVisible: true
     }
     showBoardCelebration.value = true
     showContinueButton.value = true
@@ -941,7 +943,8 @@ function onCounterComplete() {
       image: `${import.meta.env.BASE_URL}icons/skills/white_queen.png`,
       riveFile: null,
       title: 'You Mastered a Skill!',
-      subtitle: ''
+      subtitle: '',
+      contentVisible: true
     }
     showBoardCelebration.value = true
     showContinueButton.value = true
@@ -952,7 +955,8 @@ function onCounterComplete() {
       image: `${import.meta.env.BASE_URL}icons/skills/checkmate-dark.png`,
       riveFile: null,
       title: 'You Mastered a Skill!',
-      subtitle: ''
+      subtitle: '',
+      contentVisible: true
     }
     showBoardCelebration.value = true
     showContinueButton.value = true
@@ -966,7 +970,8 @@ function onCounterComplete() {
       image: null,
       riveFile: `${import.meta.env.BASE_URL}animations/skillcelebration.riv`,
       title: 'You Earned a Skill Point',
-      subtitle: 'Keep reviewing until you master every skill'
+      subtitle: 'Keep reviewing until you master every skill',
+      contentVisible: true
     }
     showBoardCelebration.value = true
     showContinueButton.value = true
@@ -998,35 +1003,46 @@ function onContinueClick() {
     checkmateCount.value === 9
 
   if (isEndOfFtue) {
-    // Transition from "You Mastered a Skill!" to "New Skills Unlocked!"
-    boardCelebrationData.value = {
-      image: 'https://www.chess.com/bundles/web/images/color-icons/commerce-gold.svg',
-      riveFile: null,
-      title: 'New Skills Unlocked!',
-      subtitle: ''
-    }
-    // Keep buttons visible during "New Skills Unlocked!"
+    // Step 1: Fade out current content (200ms)
+    boardCelebrationData.value.contentVisible = false
     
-    // After 2000ms, auto-dismiss celebration
+    // Step 2: After fade out, change content and fade in
     setTimeout(() => {
-      showSkillEarned.value = false
-      skillHighlightSquare.value = null
-      showExplosion.value = false
-      showContinueButton.value = false
+      // Change to "New Skills Unlocked!" content
+      boardCelebrationData.value = {
+        image: 'https://www.chess.com/bundles/web/images/color-icons/commerce-gold.svg',
+        riveFile: null,
+        title: 'New Skills Unlocked!',
+        subtitle: '',
+        contentVisible: false // Start hidden
+      }
       
-      // Update counter
-      checkmateCount.value++
-      
-      // Mark end of FTUE as completed
-      endOfFtueCompleted.value = true
-      
-      showBoardCelebration.value = false
-      showMoveList.value = true
-      
-      // Clear animation state
-      currentAnimatingPly.value = null
-      currentSkillType.value = null
-    }, 2000)
+      // Step 3: Fade in new content (after a tiny delay for Vue to update)
+      setTimeout(() => {
+        boardCelebrationData.value.contentVisible = true
+        
+        // Step 4: After 2000ms, auto-dismiss celebration
+        setTimeout(() => {
+          showSkillEarned.value = false
+          skillHighlightSquare.value = null
+          showExplosion.value = false
+          showContinueButton.value = false
+          
+          // Update counter
+          checkmateCount.value++
+          
+          // Mark end of FTUE as completed
+          endOfFtueCompleted.value = true
+          
+          showBoardCelebration.value = false
+          showMoveList.value = true
+          
+          // Clear animation state
+          currentAnimatingPly.value = null
+          currentSkillType.value = null
+        }, 2000)
+      }, 10)
+    }, 200)
     
     return
   }
@@ -1073,7 +1089,8 @@ function onContinueClick() {
       image: `${import.meta.env.BASE_URL}icons/skills/white_queen.png`,
       riveFile: null,
       title: 'New Skill Unlocked',
-      subtitle: ''
+      subtitle: '',
+      contentVisible: true
     }
     // Keep buttons visible during transition
     // showContinueButton.value stays true
@@ -1276,6 +1293,7 @@ onUnmounted(() => {
             :title="boardCelebrationData.title"
             :subtitle="boardCelebrationData.subtitle"
             :variant="boardCelebrationData.title === 'You Earned a Skill Point' ? 'image' : 'icon'"
+            :content-visible="boardCelebrationData.contentVisible"
           />
         </div>
       </section>

@@ -8,6 +8,7 @@ defineProps({
   title: { type: String, default: 'You Earned a Skill Point' },
   subtitle: { type: String, default: 'Keep reviewing until you master every skill' },
   variant: { type: String, default: 'icon' }, // 'icon' (small) or 'image' (large)
+  contentVisible: { type: Boolean, default: true }, // For content fade transitions
 })
 
 // Expose canvas ref so parent can initialize Rive
@@ -20,7 +21,7 @@ defineExpose({ canvasRef })
     <div v-if="visible" class="board-celebration">
       <div class="celebration-overlay"></div>
       <div class="celebration-container">
-        <div class="celebration-content">
+        <div class="celebration-content" :class="{ 'content-hidden': !contentVisible }">
           <!-- Rive Animation or Static Image -->
           <div v-if="riveFile || image" class="celebration-image" :class="variant">
             <canvas v-if="riveFile" ref="canvasRef" class="rive-canvas"></canvas>
@@ -85,6 +86,12 @@ defineExpose({ canvasRef })
   flex-direction: column;
   align-items: center;
   gap: 12px;
+  opacity: 1;
+  transition: opacity 200ms cubic-bezier(0, 0, 0.4, 1);
+}
+
+.celebration-content.content-hidden {
+  opacity: 0;
 }
 
 /* Default: icon variant (smaller square image) */
