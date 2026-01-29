@@ -194,21 +194,19 @@ const tipSrc = `${base}icons/misc/bubble-tip.svg`
   color: #E02828;
 }
 
-/* text-large-bold: 16px / 20px / 600 */
 .classification-text {
-  font-family: var(--font-family-system, -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, Helvetica, Arial, sans-serif);
+  font-family: 'SF Pro Text', -apple-system, system-ui, sans-serif;
   font-size: 16px;
   font-weight: 600;
   line-height: 20px;
   color: #312e2b;
 }
 
-/* paragraph-medium-bold: 14px / 20px / 600 */
 .coach-message {
   margin: 0;
-  font-family: var(--font-family-system, -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, Helvetica, Arial, sans-serif);
-  font-size: 14px;
-  font-weight: 600;
+  font-family: 'SF Pro Text', -apple-system, system-ui, sans-serif;
+  font-size: 15px;
+  font-weight: 500;
   line-height: 20px;
   color: #312e2b;
 }
