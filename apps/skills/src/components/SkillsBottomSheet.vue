@@ -457,6 +457,8 @@ function onTapToggle() {
   grid-template-columns: repeat(8, 1fr);
   grid-template-rows: repeat(8, 1fr);
   flex-shrink: 0;
+  border-radius: 3px;
+  overflow: hidden;
 }
 
 .mini-square {
