@@ -109,6 +109,7 @@ const ANIMATION_COLORS = {
 const lessons = [
   {
     name: 'The Goals of Chess',
+    introduction: "Let's review the key moves in chess: captures, check, and checkmate. This is how you build a lead and win the game!",
     questions: [
       {
         fen: '6k1/5pp1/3b1n1p/1p6/1P1R4/6PP/5P2/6K1 w - - 0 1',
@@ -156,6 +157,7 @@ const lessons = [
   },
   {
     name: 'The Value of the Pieces',
+    introduction: "Each chess piece has a value to help decide which captures are best. A pawn is worth 1 point. A knight is worth 3. A bishop is also worth 3. A rook is worth 5. The queen is worth 9. And the king is worth the whole game!",
     questions: [
       {
         fen: '6k1/8/4b3/8/4Rq2/8/6P1/6K1 w - - 0 1',
@@ -208,6 +210,7 @@ const currentLessonIndex = ref(0)
 // GAME STATE
 // ============================================
 const currentQuestionIndex = ref(0)
+const lessonState = ref('lesson-intro') // 'lesson-intro' or 'playing'
 const questionState = ref('intro') // 'intro', 'wrong', 'hint', 'solution'
 const streak = ref(0)
 const selectedSquare = ref(null)
@@ -252,6 +255,10 @@ const lessonName = computed(() => currentLesson.value.name)
 
 // Coach message based on state
 const coachMessage = computed(() => {
+  // Show lesson introduction text during lesson-intro state
+  if (lessonState.value === 'lesson-intro') {
+    return currentLesson.value.introduction
+  }
   const q = currentQuestion.value
   switch (questionState.value) {
     case 'intro': return q.intro
@@ -264,6 +271,13 @@ const coachMessage = computed(() => {
 
 // Coach bubble state based on question state
 const coachState = computed(() => {
+  // During lesson intro, show neutral state based on first question's side to move
+  if (lessonState.value === 'lesson-intro') {
+    const fen = currentQuestion.value.fen
+    const parts = fen.split(' ')
+    const sideToMove = parts[1] || 'w'
+    return sideToMove === 'w' ? 'white-to-move' : 'black-to-move'
+  }
   switch (questionState.value) {
     case 'intro':
     case 'hint':
@@ -953,6 +967,11 @@ const openVideo = () => {
   window.open('https://www.youtube.com/watch?v=dQw4w9WgXcQ', '_blank')
 }
 
+const startLesson = () => {
+  lessonState.value = 'playing'
+  questionState.value = 'intro'
+}
+
 const nextQuestion = () => {
   if (currentQuestionIndex.value < totalChallenges.value - 1) {
     currentQuestionIndex.value++
@@ -973,6 +992,7 @@ const handleComplete = () => {
     loadQuestion(0)
     // Reset progress but keep streak
     displayedProgress.value = 0
+    lessonState.value = 'lesson-intro' // Show intro for new lesson
     questionState.value = 'intro'
     // streak.value stays the same - maintained across lessons
   } else {
@@ -988,6 +1008,9 @@ const prevQuestion = () => {
     loadQuestion(currentQuestionIndex.value)
     displayedProgress.value = actualProgress.value
     displayedStreak.value = streak.value
+  } else if (lessonState.value === 'playing') {
+    // Go back to lesson intro from first question
+    lessonState.value = 'lesson-intro'
   } else if (currentLessonIndex.value > 0) {
     // Go to previous lesson (last question)
     currentLessonIndex.value--
@@ -996,6 +1019,7 @@ const prevQuestion = () => {
     loadQuestion(lastQuestionIndex)
     displayedProgress.value = 100 // Previous lesson was completed
     displayedStreak.value = streak.value
+    lessonState.value = 'playing' // Make sure we're in playing state
   }
 }
 
@@ -1181,8 +1205,8 @@ onUnmounted(() => {
             />
           </div>
 
-          <!-- Progress -->
-          <div class="progress-section">
+          <!-- Progress (hidden during lesson intro) -->
+          <div v-if="lessonState !== 'lesson-intro'" class="progress-section">
             <div class="progress-header">
               <div class="progress-label">
                 <span>Challenge</span>
@@ -1212,8 +1236,20 @@ onUnmounted(() => {
         <!-- Footer -->
         <footer class="panel-footer">
           <div class="action-buttons">
+            <!-- Lesson intro state: only Start button -->
+            <template v-if="lessonState === 'lesson-intro'">
+              <CcButton 
+                variant="primary" 
+                size="large" 
+                :icon="{ name: 'arrow-line-right' }"
+                @click="startLesson"
+                class="start-button"
+              >
+                Start
+              </CcButton>
+            </template>
             <!-- Complete state: only Complete button -->
-            <template v-if="questionState === 'solution' && currentQuestionIndex >= totalChallenges - 1">
+            <template v-else-if="questionState === 'solution' && currentQuestionIndex >= totalChallenges - 1">
               <CcButton 
                 variant="primary" 
                 size="large" 
@@ -1250,7 +1286,7 @@ onUnmounted(() => {
           </div>
           <div class="toolbar">
             <CcIcon :name="icons.settings" :size="24" class="toolbar-icon" />
-            <div class="toolbar-nav">
+            <div v-if="lessonState !== 'lesson-intro'" class="toolbar-nav">
               <CcIcon :name="icons.prev" :size="24" class="toolbar-icon" @click="prevQuestion" />
               <CcIcon :name="icons.next" :size="24" class="toolbar-icon" @click="nextQuestion" />
             </div>
@@ -1583,7 +1619,8 @@ body {
   max-height: 4.8rem;
 }
 
-.action-buttons .complete-button :deep(button) {
+.action-buttons .complete-button :deep(button),
+.action-buttons .start-button :deep(button) {
   width: 100%;
 }
 
