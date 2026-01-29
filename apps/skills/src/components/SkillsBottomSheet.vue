@@ -26,6 +26,26 @@ const emit = defineEmits(['close'])
 const activeTab = ref(props.initialTab)
 const isExpanded = ref(false)
 
+// Selected skill for detail view
+const selectedSkill = ref(null)
+
+function onSkillClick(skill) {
+  if (!skill.locked) {
+    selectedSkill.value = skill
+  }
+}
+
+function onBackToList() {
+  selectedSkill.value = null
+}
+
+// Reset selected skill when sheet closes
+watch(() => props.open, (isOpen) => {
+  if (!isOpen) {
+    selectedSkill.value = null
+  }
+})
+
 // Reset active tab when initialTab prop changes
 watch(() => props.initialTab, (newTab) => {
   activeTab.value = newTab
@@ -146,7 +166,7 @@ function onTapToggle() {
     <!-- Top Container: Handle + Title + Tabs -->
     <div 
       class="sheet-top"
-      :class="{ 'no-tabs': !showTabs }"
+      :class="{ 'no-tabs': !showTabs || selectedSkill }"
       @mousedown.prevent="onDragStart"
       @mousemove="onDragMove"
       @touchstart.passive="onDragStart"
@@ -159,11 +179,11 @@ function onTapToggle() {
       
       <!-- Title -->
       <div class="title-container">
-        <h2 class="title">Skills</h2>
+        <h2 class="title">{{ selectedSkill ? selectedSkill.name : 'Skills' }}</h2>
       </div>
       
-      <!-- Tabs (hidden for FTUE) -->
-      <div v-if="showTabs" class="tabs-wrapper">
+      <!-- Tabs (hidden for FTUE or when viewing skill detail) -->
+      <div v-if="showTabs && !selectedSkill" class="tabs-wrapper">
         <div 
           ref="tabsContainerRef"
           class="tabs-container"
@@ -183,14 +203,20 @@ function onTapToggle() {
       </div>
     </div>
     
+    <!-- Skill Detail View (empty sheet with just title) -->
+    <div v-if="selectedSkill" class="skill-detail-container">
+      <!-- Empty detail view - same height as skills list -->
+    </div>
+    
     <!-- Skills List -->
-    <div class="skills-container">
+    <div v-else class="skills-container">
       <div class="skills-list">
         <div 
           v-for="skill in skills" 
           :key="skill.name"
           class="skill-item"
-          :class="{ locked: skill.locked }"
+          :class="{ locked: skill.locked, clickable: !skill.locked }"
+          @click="onSkillClick(skill)"
         >
           <!-- Skill Icon -->
           <div class="skill-icon">
@@ -277,7 +303,8 @@ function onTapToggle() {
 .drag-container {
   display: flex;
   justify-content: center;
-  padding-top: 12px;
+  align-items: center;
+  height: 24px;
 }
 
 .drag-handle {
@@ -372,6 +399,12 @@ function onTapToggle() {
   opacity: 0;
 }
 
+/* Skill Detail Container (empty view) */
+.skill-detail-container {
+  padding: 0 12px;
+  height: 269px; /* Same height as skills container (212px) + tabs height (56px) + border (1px) */
+}
+
 /* Skills Container */
 .skills-container {
   padding: 0 12px;
@@ -398,6 +431,14 @@ function onTapToggle() {
   display: flex;
   align-items: center;
   gap: 8px;
+}
+
+.skill-item.clickable {
+  cursor: pointer;
+}
+
+.skill-item.clickable:active {
+  opacity: 0.8;
 }
 
 .skill-icon {
