@@ -983,9 +983,18 @@ const handleComplete = () => {
 
 const prevQuestion = () => {
   if (currentQuestionIndex.value > 0) {
+    // Go to previous question in current lesson
     currentQuestionIndex.value--
     loadQuestion(currentQuestionIndex.value)
     displayedProgress.value = actualProgress.value
+    displayedStreak.value = streak.value
+  } else if (currentLessonIndex.value > 0) {
+    // Go to previous lesson (last question)
+    currentLessonIndex.value--
+    const lastQuestionIndex = currentLesson.value.questions.length - 1
+    currentQuestionIndex.value = lastQuestionIndex
+    loadQuestion(lastQuestionIndex)
+    displayedProgress.value = 100 // Previous lesson was completed
     displayedStreak.value = streak.value
   }
 }
@@ -1163,12 +1172,14 @@ onUnmounted(() => {
             class="explosion-circle"
           ></div>
           <!-- Coach -->
-          <CoachBubble 
-            :state="coachState"
-            :move-notation="moveNotation"
-            :message="coachMessage"
-            :show-tip="true"
-          />
+          <div class="coach-container">
+            <CoachBubble 
+              :state="coachState"
+              :move-notation="moveNotation"
+              :message="coachMessage"
+              :show-tip="true"
+            />
+          </div>
 
           <!-- Progress -->
           <div class="progress-section">
@@ -1448,6 +1459,10 @@ body {
   gap: 1.6rem;
   position: relative; /* For explosion positioning */
   overflow: hidden; /* Clip left half of explosion to create semicircle */
+}
+
+.coach-container {
+  max-height: 128px;
 }
 
 /* Progress Section */
