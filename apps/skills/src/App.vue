@@ -928,7 +928,13 @@ const glyphs = {
   tabSkills: 'element-star-fill',
   tabShow: 'hand-pawn',
   tabBest: 'tool-magnifier-star',
+  tabRetry: 'arrow-spin-undo',
 }
+
+// Check if current move is "bad" - only ply 15 (8. Nh4) for demo purposes
+const isCurrentMoveBad = computed(() => {
+  return activePly.value === 15
+})
 
 // Legacy icons (not in design system)
 const navIcons = {
@@ -1819,7 +1825,13 @@ onUnmounted(() => {
                 </div>
                 <span class="tab-label">Best</span>
               </div>
-              <div class="tab-item" @click="showSkillsSheet = !showSkillsSheet">
+              <div v-if="isCurrentMoveBad" class="tab-item">
+                <div class="tab-icon tab-icon-glyph">
+                  <CcIcon :name="glyphs.tabRetry" :size="24" />
+                </div>
+                <span class="tab-label">Retry</span>
+              </div>
+              <div v-else class="tab-item" @click="showSkillsSheet = !showSkillsSheet">
                 <div class="tab-icon tab-icon-glyph">
                   <CcIcon :name="glyphs.tabSkills" :size="24" />
                 </div>
