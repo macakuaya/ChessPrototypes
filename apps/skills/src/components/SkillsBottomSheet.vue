@@ -1,5 +1,6 @@
 <script setup>
 import { ref, watch, onMounted, onUnmounted, nextTick } from 'vue'
+import { CcButton } from '@chesscom/design-system'
 
 const props = defineProps({
   open: { type: Boolean, default: true },
@@ -203,9 +204,28 @@ function onTapToggle() {
       </div>
     </div>
     
-    <!-- Skill Detail View (empty sheet with just title) -->
+    <!-- Skill Detail View -->
     <div v-if="selectedSkill" class="skill-detail-container">
-      <!-- Empty detail view - same height as skills list -->
+      <!-- Mini Chessboard -->
+      <div class="mini-board">
+        <div 
+          v-for="i in 64" 
+          :key="i"
+          class="mini-square"
+          :class="{ 
+            'light': ((Math.floor((i - 1) / 8) + (i - 1) % 8) % 2 === 1),
+            'dark': ((Math.floor((i - 1) / 8) + (i - 1) % 8) % 2 === 0)
+          }"
+        ></div>
+      </div>
+      <!-- Skill Description -->
+      <p class="skill-description">
+        A tactical pattern where you attack two or more pieces at once, forcing your opponent to lose material since they can only save one piece.
+      </p>
+      <!-- Action Button -->
+      <div class="skill-detail-action">
+        <CcButton variant="primary" size="x-large" :full-width="true" @click="emit('close')">Ok, got it!</CcButton>
+      </div>
     </div>
     
     <!-- Skills List -->
@@ -399,10 +419,56 @@ function onTapToggle() {
   opacity: 0;
 }
 
-/* Skill Detail Container (empty view) */
+/* Skill Detail Container */
 .skill-detail-container {
+  padding: 0;
+  height: fit-content;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding-top: 24px;
+  gap: 24px;
+}
+
+/* Skill Description - uses text paragraph medium token */
+.skill-description {
+  width: 100%;
+  margin: 0 12px;
   padding: 0 12px;
-  height: 269px; /* Same height as skills container (212px) + tabs height (56px) + border (1px) */
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  font-size: 14px;
+  font-weight: 400;
+  line-height: 20px;
+  color: var(--color-text-bolder);
+  text-align: left;
+}
+
+/* Skill Detail Action Button */
+.skill-detail-action {
+  width: 100%;
+  padding: 0 12px;
+}
+
+/* Mini Chessboard */
+.mini-board {
+  width: 200px;
+  height: 200px;
+  display: grid;
+  grid-template-columns: repeat(8, 1fr);
+  grid-template-rows: repeat(8, 1fr);
+  flex-shrink: 0;
+}
+
+.mini-square {
+  aspect-ratio: 1;
+}
+
+.mini-square.dark {
+  background: #779556;
+}
+
+.mini-square.light {
+  background: #EBECD0;
 }
 
 /* Skills Container */
