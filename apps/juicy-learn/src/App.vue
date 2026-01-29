@@ -106,53 +106,103 @@ const ANIMATION_COLORS = {
 // ============================================
 // LESSON DATA
 // ============================================
-const lesson = {
-  name: 'The Goals of Chess',
-  questions: [
-    {
-      fen: '6k1/5pp1/3b1n1p/1p6/1P1R4/6PP/5P2/6K1 w - - 0 1',
-      correctMove: { from: 'd4', to: 'd6', piece: 'R' }, // Rxd6
-      intro: 'Which piece can White capture?',
-      wrong: "There's a better move. Try again and look for a possible capture.",
-      hint: 'The black bishop is on the same file as your rook.',
-      solution: 'Good choice! White captures the bishop.',
-    },
-    {
-      fen: '6k1/6p1/7p/2Q5/8/6P1/5P1P/4r1K1 w - - 0 0',
-      correctMove: { from: 'g1', to: 'g2', piece: 'K' }, // Kg2
-      intro: "White's king is in check. How can you get to safety?",
-      wrong: 'Illegal',
-      hint: 'Move the king forward so that the black rook will no longer be able to attack it.',
-      solution: 'Nice move! The king is safe there.',
-    },
-    {
-      fen: '6k1/5pp1/3Q3p/3b4/8/6P1/5PKP/2r5 w - - 0 1',
-      correctMove: { from: 'd6', to: 'd5', piece: 'Q' }, // Qxd5
-      intro: "The black bishop is checking White's king. What is White's best way out of check?",
-      wrong: "This move escapes the check, but it's better to capture the black bishop. How can you do that?",
-      hint: "Capture the piece that's checking your king.",
-      solution: 'Good choice! Capturing the bishop removes the attack on your king.',
-    },
-    {
-      fen: '6k1/1p3pp1/p5q1/8/7R/7P/3Q1PP1/6K1 w - - 0 0',
-      correctMove: { from: 'd2', to: 'd8', piece: 'Q' }, // Qd8#
-      kingSquare: 'g8',  // Checkmated king's square
-      intro: 'White can check with the queen or with the rook. Which one is checkmate?',
-      wrong: "There's a possible checkmate, but that's not it. Look at your checks and try again.",
-      hint: "Find a way to check so that the black king can't capture the piece that attacks it.",
-      solution: "Nice work! That's checkmate!",
-    },
-    {
-      fen: '3k4/R7/1R6/8/8/7P/3q2PK/8 w - - 0 1',
-      correctMove: { from: 'b6', to: 'b8', piece: 'R' }, // Rb8#
-      kingSquare: 'd8',  // Checkmated king's square
-      intro: 'White has several checks, but only one is mate. Can you find it?',
-      wrong: "There's a checkmate, but that's not it. Look at your checks and try again.",
-      hint: "Look at your checks. See if you can find one that Black can't escape.",
-      solution: 'Checkmate! Well done!',
-    },
-  ],
-}
+const lessons = [
+  {
+    name: 'The Goals of Chess',
+    questions: [
+      {
+        fen: '6k1/5pp1/3b1n1p/1p6/1P1R4/6PP/5P2/6K1 w - - 0 1',
+        correctMove: { from: 'd4', to: 'd6', piece: 'R' }, // Rxd6
+        intro: 'Which piece can White capture?',
+        wrong: "There's a better move. Try again and look for a possible capture.",
+        hint: 'The black bishop is on the same file as your rook.',
+        solution: 'Good choice! White captures the bishop.',
+      },
+      {
+        fen: '6k1/6p1/7p/2Q5/8/6P1/5P1P/4r1K1 w - - 0 0',
+        correctMove: { from: 'g1', to: 'g2', piece: 'K' }, // Kg2
+        intro: "White's king is in check. How can you get to safety?",
+        wrong: 'Illegal',
+        hint: 'Move the king forward so that the black rook will no longer be able to attack it.',
+        solution: 'Nice move! The king is safe there.',
+      },
+      {
+        fen: '6k1/5pp1/3Q3p/3b4/8/6P1/5PKP/2r5 w - - 0 1',
+        correctMove: { from: 'd6', to: 'd5', piece: 'Q' }, // Qxd5
+        intro: "The black bishop is checking White's king. What is White's best way out of check?",
+        wrong: "This move escapes the check, but it's better to capture the black bishop. How can you do that?",
+        hint: "Capture the piece that's checking your king.",
+        solution: 'Good choice! Capturing the bishop removes the attack on your king.',
+      },
+      {
+        fen: '6k1/1p3pp1/p5q1/8/7R/7P/3Q1PP1/6K1 w - - 0 0',
+        correctMove: { from: 'd2', to: 'd8', piece: 'Q' }, // Qd8#
+        kingSquare: 'g8',  // Checkmated king's square
+        intro: 'White can check with the queen or with the rook. Which one is checkmate?',
+        wrong: "There's a possible checkmate, but that's not it. Look at your checks and try again.",
+        hint: "Find a way to check so that the black king can't capture the piece that attacks it.",
+        solution: "Nice work! That's checkmate!",
+      },
+      {
+        fen: '3k4/R7/1R6/8/8/7P/3q2PK/8 w - - 0 1',
+        correctMove: { from: 'b6', to: 'b8', piece: 'R' }, // Rb8#
+        kingSquare: 'd8',  // Checkmated king's square
+        intro: 'White has several checks, but only one is mate. Can you find it?',
+        wrong: "There's a checkmate, but that's not it. Look at your checks and try again.",
+        hint: "Look at your checks. See if you can find one that Black can't escape.",
+        solution: 'Checkmate! Well done!',
+      },
+    ],
+  },
+  {
+    name: 'The Value of the Pieces',
+    questions: [
+      {
+        fen: '6k1/8/4b3/8/4Rq2/8/6P1/6K1 w - - 0 1',
+        correctMove: { from: 'e4', to: 'f4', piece: 'R' }, // Rxf4
+        intro: "Let's practice capturing the most valuable pieces. Your rook can capture the black queen (9 points) or the black bishop (3 points). Which capture is best?",
+        wrong: "There's a better option. Try again and look for the strongest capture.",
+        hint: 'Find the way to capture the most valuable piece that you can.',
+        solution: 'Good choice! The queen is definitely worth more than the bishop.',
+      },
+      {
+        fen: '6k1/6p1/n6p/5r2/8/P2B4/1PP5/2K5 w - - 0 0',
+        correctMove: { from: 'd3', to: 'f5', piece: 'B' }, // Bxf5
+        intro: 'Would you like to capture the knight (3 points) or the rook (5 points)?',
+        wrong: "There's a better move. Look for your possible captures and try to select the best one.",
+        hint: 'Your bishop can capture a rook or a knight. Capture the one that\'s most valuable.',
+        solution: "That's a great move! White goes from behind to ahead in one move.",
+      },
+      {
+        fen: '6k1/5pp1/5n1p/p4b2/3Np3/4P3/5P2/R3K3 w Q - 0 1',
+        correctMove: { from: 'd4', to: 'f5', piece: 'N' }, // Nxf5
+        intro: 'White has two possible captures here. Which one is best?',
+        wrong: "There's a better move. Look at all of your possible captures and try again.",
+        hint: 'Your rook can capture a pawn and your knight can capture a bishop. Which one makes the most sense?',
+        solution: 'Well done! White wins material and has a great position!',
+      },
+      {
+        fen: '1k6/2p4p/1p4q1/1r6/7P/3Q2P1/5P2/5RK1 w - - 0 1',
+        correctMove: { from: 'd3', to: 'b5', piece: 'Q' }, // Qxb5
+        intro: 'Do you want to capture the black queen or the black rook? Check to see if either piece is defended.',
+        wrong: "There's a better move. Look at your possible captures and try again.",
+        hint: 'Capture an undefended black piece so you get to keep your queen.',
+        solution: 'Good choice! White wins a rook and should win the game.',
+      },
+      {
+        fen: '8/3k2q1/8/P6p/8/2B5/3n2PP/6K1 w - - 0 1',
+        correctMove: { from: 'c3', to: 'g7', piece: 'B' }, // Bxg7
+        intro: 'White has two possible captures. Which one is best?',
+        wrong: "There's a much stronger move. Try to find the strongest capture.",
+        hint: 'A queen is better than a knight. Make the strongest capture.',
+        solution: 'Well done! White has a great position.',
+      },
+    ],
+  },
+]
+
+// Current lesson index
+const currentLessonIndex = ref(0)
 
 // ============================================
 // GAME STATE
@@ -186,8 +236,9 @@ const progressBarRef = ref(null)      // Reference to progress bar element
 const explosionTop = ref(168)         // Y position for explosion, updated dynamically
 
 // Computed
-const currentQuestion = computed(() => lesson.questions[currentQuestionIndex.value])
-const totalChallenges = computed(() => lesson.questions.length)
+const currentLesson = computed(() => lessons[currentLessonIndex.value])
+const currentQuestion = computed(() => currentLesson.value.questions[currentQuestionIndex.value])
+const totalChallenges = computed(() => currentLesson.value.questions.length)
 const currentChallenge = computed(() => currentQuestionIndex.value + 1)
 // Actual progress (internal)
 const actualProgress = computed(() => {
@@ -197,7 +248,7 @@ const actualProgress = computed(() => {
 // Displayed progress (synced with explosion animation at 1350ms)
 const displayedProgress = ref(0)
 const displayedStreak = ref(0)
-const lessonName = computed(() => lesson.name)
+const lessonName = computed(() => currentLesson.value.name)
 
 // Coach message based on state
 const coachMessage = computed(() => {
@@ -385,7 +436,7 @@ const parseFEN = (fen) => {
 
 // Load question position
 const loadQuestion = (index) => {
-  const q = lesson.questions[index]
+  const q = currentLesson.value.questions[index]
   pieces.value = parseFEN(q.fen)
   questionState.value = 'intro'
   selectedSquare.value = null
@@ -915,8 +966,19 @@ const handleComplete = () => {
   // Play puzzle solved / level up sound
   playPuzzleSound('puzzleSolved')
   
-  // TODO: Navigate to next lesson (to be implemented)
-  console.log('Lesson complete! Moving to next lesson...')
+  if (currentLessonIndex.value < lessons.length - 1) {
+    // Move to next lesson
+    currentLessonIndex.value++
+    currentQuestionIndex.value = 0
+    loadQuestion(0)
+    // Reset progress but keep streak
+    displayedProgress.value = 0
+    questionState.value = 'intro'
+    // streak.value stays the same - maintained across lessons
+  } else {
+    // All lessons complete
+    console.log('All lessons complete!')
+  }
 }
 
 const prevQuestion = () => {

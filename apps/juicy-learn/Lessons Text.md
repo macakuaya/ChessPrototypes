@@ -91,9 +91,93 @@
 | 4 | `6k1/1p3pp1/p5q1/8/7R/7P/3Q1PP1/6K1 w` | Qd8# | Checkmate |
 | 5 | `3k4/R7/1R6/8/8/7P/3q2PK/8 w` | Rb8# | Checkmate |
 
+---
 
+## Lesson: The Value of the Pieces
 
+---
 
+### Question 1
 
-## Lesson: The Goals of Chess
+**FEN:** `6k1/8/4b3/8/4Rq2/8/6P1/6K1 w - - 0 1`
 
+**Correct Move:** `Rxf4`
+
+| State | Coach Text |
+|-------|------------|
+| **Intro** | Let's practice capturing the most valuable pieces. Your rook can capture the black queen (9 points) or the black bishop (3 points). Which capture is best? |
+| **Wrong** | There's a better option. Try again and look for the strongest capture. |
+| **Hint** | Find the way to capture the most valuable piece that you can. |
+| **Solution** | Good choice! The queen is definitely worth more than the bishop. |
+
+---
+
+### Question 2
+
+**FEN:** `6k1/6p1/n6p/5r2/8/P2B4/1PP5/2K5 w - - 0 0`
+
+**Correct Move:** `Bxf5`
+
+| State | Coach Text |
+|-------|------------|
+| **Intro** | Would you like to capture the knight (3 points) or the rook (5 points)? |
+| **Wrong** | There's a better move. Look for your possible captures and try to select the best one. |
+| **Hint** | Your bishop can capture a rook or a knight. Capture the one that's most valuable. |
+| **Solution** | That's a great move! White goes from behind to ahead in one move. |
+
+---
+
+### Question 3
+
+**FEN:** `6k1/5pp1/5n1p/p4b2/3Np3/4P3/5P2/R3K3 w Q - 0 1`
+
+**Correct Move:** `Nxf5`
+
+| State | Coach Text |
+|-------|------------|
+| **Intro** | White has two possible captures here. Which one is best? |
+| **Wrong** | There's a better move. Look at all of your possible captures and try again. |
+| **Hint** | Your rook can capture a pawn and your knight can capture a bishop. Which one makes the most sense? |
+| **Solution** | Well done! White wins material and has a great position! |
+
+---
+
+### Question 4
+
+**FEN:** `1k6/2p4p/1p4q1/1r6/7P/3Q2P1/5P2/5RK1 w - - 0 1`
+
+**Correct Move:** `Qxb5`
+
+| State | Coach Text |
+|-------|------------|
+| **Intro** | Do you want to capture the black queen or the black rook? Check to see if either piece is defended. |
+| **Wrong** | There's a better move. Look at your possible captures and try again. |
+| **Hint** | Capture an undefended black piece so you get to keep your queen. |
+| **Solution** | Good choice! White wins a rook and should win the game. |
+
+---
+
+### Question 5
+
+**FEN:** `8/3k2q1/8/P6p/8/2B5/3n2PP/6K1 w - - 0 1`
+
+**Correct Move:** `Bxg7`
+
+| State | Coach Text |
+|-------|------------|
+| **Intro** | White has two possible captures. Which one is best? |
+| **Wrong** | There's a much stronger move. Try to find the strongest capture. |
+| **Hint** | A queen is better than a knight. Make the strongest capture. |
+| **Solution** | Well done! White has a great position. |
+
+---
+
+## Summary
+
+| Q# | FEN | Move | Theme |
+|----|-----|------|-------|
+| 1 | `6k1/8/4b3/8/4Rq2/8/6P1/6K1 w` | Rxf4 | Queen vs Bishop (9 vs 3) |
+| 2 | `6k1/6p1/n6p/5r2/8/P2B4/1PP5/2K5 w` | Bxf5 | Rook vs Knight (5 vs 3) |
+| 3 | `6k1/5pp1/5n1p/p4b2/3Np3/4P3/5P2/R3K3 w` | Nxf5 | Bishop vs Pawn (3 vs 1) |
+| 4 | `1k6/2p4p/1p4q1/1r6/7P/3Q2P1/5P2/5RK1 w` | Qxb5 | Capture undefended piece |
+| 5 | `8/3k2q1/8/P6p/8/2B5/3n2PP/6K1 w` | Bxg7 | Queen vs Knight (9 vs 3) |
