@@ -1807,12 +1807,6 @@ onUnmounted(() => {
           <!-- Normal tabs OR Continue button with fade transitions -->
           <Transition name="tabs-fade" mode="out-in">
             <div v-if="!showContinueButton" key="tabs" class="tabs-group">
-              <div class="tab-item" @click="showSkillsSheet = !showSkillsSheet">
-                <div class="tab-icon tab-icon-glyph">
-                  <CcIcon :name="glyphs.tabSkills" :size="24" />
-                </div>
-                <span class="tab-label">Skills</span>
-              </div>
               <div class="tab-item">
                 <div class="tab-icon tab-icon-glyph">
                   <CcIcon :name="glyphs.tabShow" :size="24" />
@@ -1824,6 +1818,12 @@ onUnmounted(() => {
                   <CcIcon :name="glyphs.tabBest" :size="24" />
                 </div>
                 <span class="tab-label">Best</span>
+              </div>
+              <div class="tab-item" @click="showSkillsSheet = !showSkillsSheet">
+                <div class="tab-icon tab-icon-glyph">
+                  <CcIcon :name="glyphs.tabSkills" :size="24" />
+                </div>
+                <span class="tab-label">Skills</span>
               </div>
               <CcButton variant="primary" size="x-large" class="tab-cta-ds" @click="playNextMoves">Next</CcButton>
             </div>
