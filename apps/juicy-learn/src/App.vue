@@ -4,6 +4,38 @@ import { CcButton, CcIconButton, CcIcon } from '@chesscom/design-system'
 import CoachBubble from './components/CoachBubble.vue'
 import { playSound } from '@chess/components/sounds'
 
+// Puzzle sound URLs from Chess.com CDN
+const PUZZLE_SOUNDS = {
+  correct: 'https://www.chess.com/bundles/web/sounds/mp3/correct.mp3',
+  incorrect: 'https://www.chess.com/bundles/web/sounds/mp3/incorrect.mp3',
+  puzzleSolved: 'https://www.chess.com/bundles/web/sounds/puzzles/solving/puzzle-solved.wav',
+  coinHit1: 'https://www.chess.com/bundles/web/sounds/puzzles/solving/coin_hit_1.wav',
+  coinHit2: 'https://www.chess.com/bundles/web/sounds/puzzles/solving/coin_hit_2.wav',
+  coinHit3: 'https://www.chess.com/bundles/web/sounds/puzzles/solving/coin_hit_3.wav',
+  rewardCoin: 'https://www.chess.com/bundles/web/sounds/puzzles/solving/reward_points_coin.wav',
+  levelUp: 'https://www.chess.com/bundles/web/sounds/puzzles/level_up/level_up_award.wav',
+}
+
+// Preload puzzle sounds for instant playback
+const puzzleSoundCache = {}
+const preloadPuzzleSound = (key) => {
+  if (!puzzleSoundCache[key]) {
+    puzzleSoundCache[key] = new Audio(PUZZLE_SOUNDS[key])
+    puzzleSoundCache[key].preload = 'auto'
+  }
+  return puzzleSoundCache[key]
+}
+
+// Preload all puzzle sounds
+Object.keys(PUZZLE_SOUNDS).forEach(preloadPuzzleSound)
+
+// Play a puzzle sound
+const playPuzzleSound = (key) => {
+  const audio = preloadPuzzleSound(key)
+  audio.currentTime = 0 // Reset to start
+  audio.play().catch(error => console.warn('Failed to play sound:', error))
+}
+
 // Icon names from Figma design
 const icons = {
   // Header icons (20px)
@@ -579,6 +611,12 @@ const triggerSingleAnimation = (square, color, label, onExplosion = null, onComp
   // After 800ms (morph) + 50ms pause + 500ms (fall), show explosion
   setTimeout(() => {
     showExplosion.value = true
+    
+    // Play coin hit sound when coin lands
+    const coinSounds = ['coinHit1', 'coinHit2', 'coinHit3']
+    const randomCoin = coinSounds[Math.floor(Math.random() * coinSounds.length)]
+    playPuzzleSound(randomCoin)
+    
     if (onExplosion) onExplosion()
     
     // Clear explosion after 500ms
@@ -626,6 +664,11 @@ const triggerCorrectMoveAnimations = (square, streakNumber) => {
         () => {
           // On explosion: update streak counter and color
           displayedStreak.value = streak.value
+          
+          // Play level up sound on streak milestones (5, 7, 10+)
+          if (streak.value === 5 || streak.value === 7 || streak.value >= 10) {
+            playPuzzleSound('levelUp')
+          }
         },
         null
       )
@@ -701,7 +744,10 @@ const tryMove = (from, to) => {
     questionState.value = 'solution'
     lastMove.value = { from, to }
     
-    // Play appropriate sound
+    // Play appropriate sound - use puzzle correct sound
+    playPuzzleSound('correct')
+    
+    // Also play the move/capture/check sound for tactile feedback
     if (isCheckmate) {
       playSound('check')
     } else if (isCapture) {
@@ -734,7 +780,10 @@ const tryMove = (from, to) => {
     makeMove(from, to)
     lastMove.value = { from, to }
     
-    // Play move sound
+    // Play incorrect sound for wrong move
+    playPuzzleSound('incorrect')
+    
+    // Also play the move/capture sound for tactile feedback
     if (isCapture) {
       playSound('capture')
     } else {
@@ -863,6 +912,9 @@ const nextQuestion = () => {
 }
 
 const handleComplete = () => {
+  // Play puzzle solved / level up sound
+  playPuzzleSound('puzzleSolved')
+  
   // TODO: Navigate to next lesson (to be implemented)
   console.log('Lesson complete! Moving to next lesson...')
 }
