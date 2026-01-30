@@ -1,6 +1,6 @@
 <script setup>
 import { ref, watch, onMounted, onUnmounted, nextTick } from 'vue'
-import { CcButton } from '@chesscom/design-system'
+import { CcButton, CcIconButton } from '@chesscom/design-system'
 
 const props = defineProps({
   open: { type: Boolean, default: true },
@@ -164,6 +164,17 @@ function onTapToggle() {
     @mouseleave="onDragEnd"
     @touchend="onDragEnd"
   >
+    <!-- Close Button (only shown on skill detail view) -->
+    <CcIconButton 
+      v-if="selectedSkill"
+      :icon="{ name: 'mark-cross', variant: 'glyph' }"
+      size="large"
+      :icon-size="16"
+      class="sheet-close-button"
+      :custom-classes="{ icon: 'icon-subtle' }"
+      @click="emit('close')"
+    />
+    
     <!-- Top Container: Handle + Title + Tabs -->
     <div 
       class="sheet-top"
@@ -282,6 +293,7 @@ function onTapToggle() {
 
 <style scoped>
 .skills-bottom-sheet {
+  position: relative;
   display: flex;
   flex-direction: column;
   width: 100%;
@@ -290,6 +302,18 @@ function onTapToggle() {
   overflow: hidden;
   transform: translateY(100%);
   transition: transform 150ms cubic-bezier(0, 0, 0.2, 1);
+}
+
+/* Close Button - positioned top right, ignoring layout */
+.sheet-close-button {
+  position: absolute;
+  top: 0;
+  right: 0;
+  z-index: 10;
+}
+
+.sheet-close-button :deep(.icon-subtle) {
+  color: var(--color-icon-subtle);
 }
 
 .skills-bottom-sheet.open {
