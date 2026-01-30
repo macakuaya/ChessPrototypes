@@ -27,23 +27,139 @@ const emit = defineEmits(['close'])
 const activeTab = ref(props.initialTab)
 const isExpanded = ref(false)
 
-// Selected skill for detail view
+// Selected skill for detail view (the actual data)
 const selectedSkill = ref(null)
 
+// Animation state - controls which view is visible
+const showingDetail = ref(false)  // Which view to show
+const isTransitioning = ref(false)  // Are we mid-transition?
+const contentFaded = ref(false)  // Is content faded out?
+
+// Refs for measuring heights
+const contentWrapperRef = ref(null)
+const skillsListRef = ref(null)
+const skillDetailRef = ref(null)
+
+// Animation timing (in ms)
+const FADE_OUT_DURATION = 100
+const PAUSE_DURATION = 50
+const FADE_IN_DURATION = 150
+const FADE_IN_BOARD_DURATION = 200
+const HEIGHT_DURATION = 250
+
 function onSkillClick(skill) {
-  if (!skill.locked) {
+  if (!skill.locked && !isTransitioning.value) {
     selectedSkill.value = skill
+    startTransitionToDetail()
   }
 }
 
 function onBackToList() {
-  selectedSkill.value = null
+  if (!isTransitioning.value) {
+    startTransitionToList()
+  }
 }
 
-// Reset selected skill when sheet closes
+function startTransitionToDetail() {
+  if (isTransitioning.value) return
+  isTransitioning.value = true
+  
+  const wrapper = contentWrapperRef.value
+  const detailEl = skillDetailRef.value
+  
+  // Step 1: Lock current height
+  if (wrapper) {
+    wrapper.style.height = `${wrapper.offsetHeight}px`
+  }
+  
+  // Step 2: Fade out content
+  contentFaded.value = true
+  
+  // Step 3: After fade out, switch views and animate height
+  setTimeout(() => {
+    showingDetail.value = true
+    
+    // Measure target height and animate
+    nextTick(() => {
+      if (wrapper && detailEl) {
+        const targetHeight = detailEl.offsetHeight
+        wrapper.style.height = `${targetHeight}px`
+      }
+    })
+    
+    // Step 4: Pause, then fade in
+    setTimeout(() => {
+      contentFaded.value = false
+      
+      // Step 5: Clean up after all animations complete
+      setTimeout(() => {
+        if (wrapper) {
+          wrapper.style.height = ''
+        }
+        isTransitioning.value = false
+      }, Math.max(FADE_IN_DURATION, FADE_IN_BOARD_DURATION))
+    }, PAUSE_DURATION)
+  }, FADE_OUT_DURATION)
+}
+
+function startTransitionToList() {
+  if (isTransitioning.value) return
+  isTransitioning.value = true
+  
+  const wrapper = contentWrapperRef.value
+  const listEl = skillsListRef.value
+  
+  // Step 1: Lock current height
+  if (wrapper) {
+    wrapper.style.height = `${wrapper.offsetHeight}px`
+  }
+  
+  // Step 2: Fade out content
+  contentFaded.value = true
+  
+  // Step 3: After fade out, switch views and animate height
+  setTimeout(() => {
+    showingDetail.value = false
+    selectedSkill.value = null
+    
+    // Measure target height and animate
+    nextTick(() => {
+      if (wrapper && listEl) {
+        const targetHeight = listEl.offsetHeight
+        wrapper.style.height = `${targetHeight}px`
+      }
+    })
+    
+    // Step 4: Pause, then fade in
+    setTimeout(() => {
+      contentFaded.value = false
+      
+      // Step 5: Clean up after all animations complete
+      setTimeout(() => {
+        if (wrapper) {
+          wrapper.style.height = ''
+        }
+        isTransitioning.value = false
+      }, FADE_IN_DURATION)
+    }, PAUSE_DURATION)
+  }, FADE_OUT_DURATION)
+}
+
+// Reset state when sheet closes (after close animation finishes)
+const SHEET_CLOSE_DURATION = 300 // Match CSS transition duration
+
 watch(() => props.open, (isOpen) => {
   if (!isOpen) {
-    selectedSkill.value = null
+    // Delay reset until sheet close animation completes
+    setTimeout(() => {
+      selectedSkill.value = null
+      showingDetail.value = false
+      isTransitioning.value = false
+      contentFaded.value = false
+      if (contentWrapperRef.value) {
+        contentWrapperRef.value.style.height = ''
+      }
+    }, SHEET_CLOSE_DURATION)
   }
 })
 
@@ -164,9 +280,21 @@ function onTapToggle() {
     @mouseleave="onDragEnd"
     @touchend="onDragEnd"
   >
-    <!-- Close Button (only shown on skill detail view) -->
+    <!-- Drag Handle (always visible) -->
+    <div 
+      class="drag-container" 
+      @click="onTapToggle"
+      @mousedown.prevent="onDragStart"
+      @mousemove="onDragMove"
+      @touchstart.passive="onDragStart"
+      @touchmove.passive="onDragMove"
+    >
+      <div class="drag-handle"></div>
+    </div>
+    
+    <!-- Close Button (shown on detail view, positioned at sheet top-right) -->
     <CcIconButton 
-      v-if="selectedSkill"
+      v-if="showingDetail"
       :icon="{ name: 'mark-cross', variant: 'glyph' }"
       size="large"
       :icon-size="16"
@@ -175,113 +303,123 @@ function onTapToggle() {
       @click="emit('close')"
     />
     
-    <!-- Top Container: Handle + Title + Tabs -->
-    <div 
-      class="sheet-top"
-      :class="{ 'no-tabs': !showTabs || selectedSkill }"
-      @mousedown.prevent="onDragStart"
-      @mousemove="onDragMove"
-      @touchstart.passive="onDragStart"
-      @touchmove.passive="onDragMove"
-    >
-      <!-- Drag Handle -->
-      <div class="drag-container" @click="onTapToggle">
-        <div class="drag-handle"></div>
-      </div>
+    <!-- Content Wrapper - controls height animation -->
+    <div ref="contentWrapperRef" class="content-wrapper">
       
-      <!-- Title -->
-      <div class="title-container">
-        <h2 class="title">{{ selectedSkill ? selectedSkill.name : 'Skills' }}</h2>
-      </div>
-      
-      <!-- Tabs (hidden for FTUE or when viewing skill detail) -->
-      <div v-if="showTabs && !selectedSkill" class="tabs-wrapper">
-        <div 
-          ref="tabsContainerRef"
-          class="tabs-container"
-          @scroll="onTabsScroll"
-        >
-          <button
-            v-for="tab in tabs"
-            :key="tab.id"
-            class="tab"
-            :class="{ active: activeTab === tab.id }"
-            @click="activeTab = tab.id"
-          >
-            {{ tab.label }}
-          </button>
+      <!-- LIST VIEW: Title + Tabs + Skills List -->
+      <div 
+        ref="skillsListRef"
+        class="list-view" 
+        :class="{ 'view-hidden': showingDetail, 'content-faded': contentFaded }"
+      >
+        <!-- Title -->
+        <div class="title-container">
+          <h2 class="title">Skills</h2>
         </div>
-        <div class="tabs-fade-mask" :class="{ hidden: isScrolledToEnd }"></div>
-      </div>
-    </div>
-    
-    <!-- Skill Detail View -->
-    <div v-if="selectedSkill" class="skill-detail-container">
-      <!-- Mini Chessboard -->
-      <div class="mini-board">
-        <div 
-          v-for="i in 64" 
-          :key="i"
-          class="mini-square"
-          :class="{ 
-            'light': ((Math.floor((i - 1) / 8) + (i - 1) % 8) % 2 === 1),
-            'dark': ((Math.floor((i - 1) / 8) + (i - 1) % 8) % 2 === 0)
-          }"
-        ></div>
-      </div>
-      <!-- Skill Description -->
-      <p class="skill-description">
-        A tactical pattern where you attack two or more pieces at once, forcing your opponent to lose material since they can only save one piece.
-      </p>
-      <!-- Action Button -->
-      <div class="skill-detail-action">
-        <CcButton variant="primary" size="x-large" :full-width="true" @click="emit('close')">Ok, got it!</CcButton>
-      </div>
-    </div>
-    
-    <!-- Skills List -->
-    <div v-else class="skills-container">
-      <div class="skills-list">
-        <div 
-          v-for="skill in skills" 
-          :key="skill.name"
-          class="skill-item"
-          :class="{ locked: skill.locked, clickable: !skill.locked }"
-          @click="onSkillClick(skill)"
-        >
-          <!-- Skill Icon -->
-          <div class="skill-icon">
-            <img v-if="skill.icon && skillIcons[skill.icon]" :src="skillIcons[skill.icon]" :alt="skill.name" />
-            <div v-else class="skill-icon-placeholder">
-              <svg viewBox="0 0 44 44" fill="none">
-                <rect x="2" y="2" width="40" height="40" rx="2" stroke="rgba(255,255,255,0.3)" stroke-width="2" stroke-dasharray="4 4" fill="none"/>
-              </svg>
+        
+        <!-- Tabs -->
+        <div v-if="showTabs" class="tabs-wrapper">
+          <div 
+            ref="tabsContainerRef"
+            class="tabs-container"
+            @scroll="onTabsScroll"
+          >
+            <button
+              v-for="tab in tabs"
+              :key="tab.id"
+              class="tab"
+              :class="{ active: activeTab === tab.id }"
+              @click="activeTab = tab.id"
+            >
+              {{ tab.label }}
+            </button>
+          </div>
+          <div class="tabs-fade-mask" :class="{ hidden: isScrolledToEnd }"></div>
+        </div>
+        
+        <!-- Skills List -->
+        <div class="skills-container">
+          <div class="skills-list">
+            <div 
+              v-for="skill in skills" 
+              :key="skill.name"
+              class="skill-item"
+              :class="{ locked: skill.locked, clickable: !skill.locked }"
+              @click="onSkillClick(skill)"
+            >
+              <!-- Skill Icon -->
+              <div class="skill-icon">
+                <img v-if="skill.icon && skillIcons[skill.icon]" :src="skillIcons[skill.icon]" :alt="skill.name" />
+                <div v-else class="skill-icon-placeholder">
+                  <svg viewBox="0 0 44 44" fill="none">
+                    <rect x="2" y="2" width="40" height="40" rx="2" stroke="rgba(255,255,255,0.3)" stroke-width="2" stroke-dasharray="4 4" fill="none"/>
+                  </svg>
+                </div>
+              </div>
+              
+              <!-- Skill Info -->
+              <div class="skill-info">
+                <!-- Label + Counter (hidden for completed or locked skills) -->
+                <div class="skill-header">
+                  <span class="skill-name">{{ skill.name }}</span>
+                  <span v-if="!skill.completed && !skill.locked" class="skill-counter">
+                    <span class="current">{{ skill.current }}</span>
+                    <span class="separator">/</span>
+                    <span class="max">{{ skill.max }}</span>
+                  </span>
+                </div>
+                
+                <!-- Progress Bar (hidden for completed or locked skills) -->
+                <div v-if="!skill.completed && !skill.locked" class="progress-bar">
+                  <div class="progress-bg"></div>
+                  <div 
+                    class="progress-fill" 
+                    :style="{ width: getProgressPercent(skill.current, skill.max) + '%' }"
+                  ></div>
+                </div>
+              </div>
             </div>
+          </div>
+        </div>
+      </div>
+      
+      <!-- DETAIL VIEW: Title + Board + Description + Button -->
+      <div 
+        ref="skillDetailRef"
+        class="detail-view" 
+        :class="{ 'view-hidden': !showingDetail, 'content-faded': contentFaded }"
+      >
+        <!-- Title -->
+        <div class="title-container">
+          <h2 class="title">{{ selectedSkill ? selectedSkill.name : '' }}</h2>
+        </div>
+        
+        <!-- Mini Chessboard -->
+        <div class="skill-detail-content">
+          <div class="mini-board" :class="{ 'board-entering': showingDetail && !contentFaded }">
+            <div 
+              v-for="i in 64" 
+              :key="i"
+              class="mini-square"
+              :class="{ 
+                'light': ((Math.floor((i - 1) / 8) + (i - 1) % 8) % 2 === 1),
+                'dark': ((Math.floor((i - 1) / 8) + (i - 1) % 8) % 2 === 0)
+              }"
+            ></div>
           </div>
           
-          <!-- Skill Info -->
-          <div class="skill-info">
-            <!-- Label + Counter (hidden for completed or locked skills) -->
-            <div class="skill-header">
-              <span class="skill-name">{{ skill.name }}</span>
-              <span v-if="!skill.completed && !skill.locked" class="skill-counter">
-                <span class="current">{{ skill.current }}</span>
-                <span class="separator">/</span>
-                <span class="max">{{ skill.max }}</span>
-              </span>
-            </div>
-            
-            <!-- Progress Bar (hidden for completed or locked skills) -->
-            <div v-if="!skill.completed && !skill.locked" class="progress-bar">
-              <div class="progress-bg"></div>
-              <div 
-                class="progress-fill" 
-                :style="{ width: getProgressPercent(skill.current, skill.max) + '%' }"
-              ></div>
-            </div>
+          <!-- Skill Description -->
+          <p class="skill-description">
+            A tactical pattern where you attack two or more pieces at once, forcing your opponent to lose material since they can only save one piece.
+          </p>
+          
+          <!-- Action Button -->
+          <div class="skill-detail-action">
+            <CcButton variant="primary" size="x-large" :full-width="true" @click="emit('close')">Ok, got it!</CcButton>
           </div>
         </div>
       </div>
+      
     </div>
     
     <!-- Home Indicator -->
@@ -301,19 +439,7 @@ function onTapToggle() {
   border-radius: 10px 10px 0 0;
   overflow: hidden;
   transform: translateY(100%);
-  transition: transform 150ms cubic-bezier(0, 0, 0.2, 1);
-}
-
-/* Close Button - positioned top right, ignoring layout */
-.sheet-close-button {
-  position: absolute;
-  top: 0;
-  right: 0;
-  z-index: 10;
-}
-
-.sheet-close-button :deep(.icon-subtle) {
-  color: var(--color-icon-subtle);
+  transition: transform var(--motion-fast) var(--motion-ease-out-gentle);
 }
 
 .skills-bottom-sheet.open {
@@ -328,27 +454,17 @@ function onTapToggle() {
   overflow-y: auto;
 }
 
-/* Top Container */
-.sheet-top {
-  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-  cursor: grab;
-  user-select: none;
-}
-
-.sheet-top.no-tabs {
-  border-bottom: none;
-}
-
-.sheet-top:active {
-  cursor: grabbing;
-}
-
 /* Drag Handle */
 .drag-container {
   display: flex;
   justify-content: center;
   align-items: center;
   height: 24px;
+  cursor: grab;
+}
+
+.drag-container:active {
+  cursor: grabbing;
 }
 
 .drag-handle {
@@ -356,6 +472,61 @@ function onTapToggle() {
   height: 5px;
   background: rgba(255, 255, 255, 0.1);
   border-radius: 100px;
+}
+
+/* Content Wrapper - uses grid to stack views */
+.content-wrapper {
+  display: grid;
+  overflow: hidden;
+  transition: height var(--motion-moderate) linear;
+}
+
+/* Both views stack in the same grid cell */
+.list-view,
+.detail-view {
+  grid-area: 1 / 1;
+  transition: opacity var(--motion-fast) linear;
+}
+
+/* Faster fade out (100ms) */
+.list-view.content-faded,
+.detail-view.content-faded {
+  opacity: 0;
+  transition: opacity var(--motion-faster) linear;
+}
+
+/* List View */
+.list-view {
+  display: flex;
+  flex-direction: column;
+  min-width: 0; /* Prevent grid overflow */
+  overflow: hidden;
+}
+
+/* Detail View */
+.detail-view {
+  position: relative;
+}
+
+/* Hidden view - doesn't contribute to grid height */
+.view-hidden {
+  visibility: hidden;
+  pointer-events: none;
+  height: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+
+/* Close Button - positioned top right */
+.sheet-close-button {
+  position: absolute;
+  top: 0;
+  right: 0;
+  z-index: 10;
+}
+
+.sheet-close-button :deep(.icon-subtle) {
+  color: var(--color-icon-subtle);
 }
 
 /* Title */
@@ -380,6 +551,7 @@ function onTapToggle() {
   position: relative;
   height: 56px;
   overflow: hidden;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
 }
 
 .tabs-container {
@@ -413,7 +585,7 @@ function onTapToggle() {
   line-height: 16px;
   color: rgba(255, 255, 255, 0.72);
   cursor: pointer;
-  transition: color 150ms ease, border-color 150ms ease;
+  transition: color var(--motion-fast) var(--motion-ease-out-gentle), border-color var(--motion-fast) var(--motion-ease-out-gentle);
   white-space: nowrap;
 }
 
@@ -436,15 +608,25 @@ function onTapToggle() {
   background: linear-gradient(to right, transparent, #262421);
   pointer-events: none;
   opacity: 1;
-  transition: opacity 200ms ease-out;
+  transition: opacity var(--motion-standard) var(--motion-ease-out-gentle);
 }
 
 .tabs-fade-mask.hidden {
   opacity: 0;
 }
 
-/* Skill Detail Container */
-.skill-detail-container {
+/* Mini Board - slower fade in (200ms) */
+.mini-board {
+  opacity: 0;
+  transition: opacity var(--motion-standard) linear;
+}
+
+.board-entering {
+  opacity: 1;
+}
+
+/* Skill Detail Content */
+.skill-detail-content {
   padding: 0;
   height: fit-content;
   display: flex;
@@ -502,7 +684,7 @@ function onTapToggle() {
   padding: 0 12px;
   max-height: 212px; /* Fits exactly 3 skill items: 3*44px + 2*24px gaps + 32px padding */
   overflow: hidden;
-  transition: max-height 150ms cubic-bezier(0, 0, 0.2, 1);
+  transition: max-height var(--motion-fast) var(--motion-ease-out-gentle);
 }
 
 .skills-bottom-sheet.expanded .skills-container {
@@ -638,7 +820,7 @@ function onTapToggle() {
   bottom: 0;
   background: #81b64c;
   border-radius: 10px;
-  transition: width 300ms cubic-bezier(0.4, 0, 0.2, 1);
+  transition: width var(--motion-steady) var(--motion-ease-out-gentle);
 }
 
 /* Home Indicator */
