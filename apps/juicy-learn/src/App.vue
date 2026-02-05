@@ -311,6 +311,26 @@ const moveNotation = computed(() => {
   return to
 })
 
+// Coach bubble fade animation (match Skills app behavior)
+const showCoachBubble = ref(true)
+let coachBubblePendingShow = false
+
+watch([coachMessage, coachState, moveNotation], () => {
+  if (showCoachBubble.value) {
+    coachBubblePendingShow = true
+    showCoachBubble.value = false
+  } else {
+    coachBubblePendingShow = true
+  }
+})
+
+function onCoachBubbleLeave() {
+  if (coachBubblePendingShow) {
+    coachBubblePendingShow = false
+    showCoachBubble.value = true
+  }
+}
+
 // Streak color logic
 // 0-1 = green (text-win), 2 = lowest, 3-4 = low, 5-6 = medium, 7+ = high
 // Streak color uses displayedStreak (synced with explosion animation)
@@ -1202,6 +1222,8 @@ onUnmounted(() => {
               :move-notation="moveNotation"
               :message="coachMessage"
               :show-tip="true"
+              :visible="showCoachBubble"
+              @after-leave="onCoachBubbleLeave"
             />
           </div>
 
