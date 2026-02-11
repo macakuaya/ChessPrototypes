@@ -53,12 +53,24 @@ jobs:
         working-directory: apps/juicy-learn
         run: npm run build
 
+      # Build New Daily Puzzle app
+      - name: Install dependencies (new-daily-puzzle)
+        working-directory: apps/new-daily-puzzle
+        run: npm ci
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: Build (new-daily-puzzle)
+        working-directory: apps/new-daily-puzzle
+        run: npm run build
+
       # Combine all builds into single dist folder
       - name: Prepare deployment folder
         run: |
           mkdir -p dist
           cp -r apps/skills/dist dist/skills
           cp -r apps/juicy-learn/dist dist/juicy-learn
+          cp -r apps/new-daily-puzzle/dist dist/new-daily-puzzle
           cp -r landing/* dist/
 
       - name: Upload artifact
