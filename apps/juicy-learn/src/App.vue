@@ -156,6 +156,60 @@ const lessons = [
     ],
   },
   {
+    name: 'Evaluating Captures',
+    introduction: "Each piece has a numerical value that can help you evaluate whether exchanging it makes sense. Pawns are 1 point, knights are 3 points, bishops are 3 points, rooks are 5 points, queens are 9 points, kings are the whole game! Let's work on evaluating captures and making the right choices.",
+    questions: [
+      {
+        fen: '3q2k1/2p2npp/4p3/5p2/3Q3B/4P3/5P2/6K1 w - - 0 1',
+        correctMove: { from: 'h4', to: 'd8', piece: 'B' }, // Bxd8
+        intro: "What is White's best capture?",
+        wrong: "There's a better move. Try again and look for the strongest capture.",
+        hint: "Find the safest way to capture Black's queen.",
+        solution: 'Good work! White wins the queen and soon wins the game.',
+      },
+      {
+        fen: '2r4k/p5pp/1b3n2/3Np3/P3Pp2/2r2B1P/5PP1/R4RK1 w - - 0 1',
+        correctMove: { from: 'd5', to: 'c3', piece: 'N' }, // Nxc3
+        intro: 'Which move wins material for White?',
+        wrong: 'This move does not gain material for White. Try again!',
+        hint: 'Which black piece can be captured that is a greater value than the white knight?',
+        solution: "Nice work! White traded a knight (3 points) for Black's rook (5 points).",
+      },
+      {
+        fen: '5rk1/1p3pb1/4p3/8/p2n4/6B1/1P1R1P2/3R2K1 w - - 0 1',
+        correctMove: { from: 'd2', to: 'd4', piece: 'R' }, // Rxd4
+        intro: 'How can White win material?',
+        wrong: "There's a better move. Try again and look for a strong capture.",
+        hint: 'Winning a knight and bishop, but losing a rook, would be a good trade.',
+        solution: "Great move! What's next?",
+        continuation: {
+          opponentMove: { from: 'g7', to: 'd4' }, // Bxd4 auto-played
+          correctMove: { from: 'd1', to: 'd4', piece: 'R' }, // Rxd4
+          intro: 'Black recaptured with the bishop. Can you find the next strong capture?',
+          wrong: "There's a better move. Try again and look for a strong capture.",
+          hint: 'Capture an undefended piece.',
+          solution: 'Well played! White emerges with an extra bishop and good chances to win the game.',
+        },
+      },
+      {
+        fen: 'r2rn1k1/3nqp1p/pp2p1p1/2p3N1/2P2P2/1P4P1/P1Q2PBP/2RR2K1 w - - 0 2',
+        correctMove: { from: 'g2', to: 'a8', piece: 'B' }, // Bxa8
+        intro: 'With White to move, can you find a way to win material?',
+        wrong: 'This move does not gain material for White. Try again!',
+        hint: 'Look at the long light-squared diagonal...',
+        solution: "You got it! White trades a bishop (3 points) for Black's rook (5 points).",
+      },
+      {
+        fen: '3r2k1/4np2/p5b1/1p5p/2pN2p1/P5P1/1P2PP1P/R1N3K1 w - - 0 1',
+        correctMove: { from: 'e2', to: 'e3' }, // e3
+        intro: "White's knight on d4 is in trouble. Should White capture the pawn on b5, or is there a stronger defense for White?",
+        wrong: 'This move does not save the knight. Try again!',
+        hint: 'Find a move that safely guards the knight on d4.',
+        solution: 'Great defense! White protects the knight with a pawn, so if Black captures the knight with the rook, White gains material.',
+      },
+    ],
+  },
+  {
     name: 'The Value of the Pieces',
     introduction: "Each chess piece has a value to help decide which captures are best. A pawn is worth 1 point. A knight is worth 3. A bishop is also worth 3. A rook is worth 5. The queen is worth 9. And the king is worth the whole game!",
     questions: [
@@ -216,6 +270,11 @@ const streak = ref(0)
 const selectedSquare = ref(null)
 const lastMove = ref(null) // { from, to }
 
+// Multi-move continuation state
+const continuationActive = ref(false)  // true when playing a continuation sub-move
+const continuationData = ref(null)     // stores the continuation object from question data
+const intermediateCorrectSquare = ref(null) // square for intermediate correct animation
+
 // Drag state
 const isDragging = ref(false)
 const draggedPiece = ref(null) // { type, square }
@@ -243,9 +302,26 @@ const currentLesson = computed(() => lessons[currentLessonIndex.value])
 const currentQuestion = computed(() => currentLesson.value.questions[currentQuestionIndex.value])
 const totalChallenges = computed(() => currentLesson.value.questions.length)
 const currentChallenge = computed(() => currentQuestionIndex.value + 1)
+
+// Active move data: returns the continuation data when active, otherwise the question itself
+const activeMoveData = computed(() => {
+  if (continuationActive.value && continuationData.value) {
+    return continuationData.value
+  }
+  return currentQuestion.value
+})
+
+// Whether the current question is fully solved (final move in solution state)
+const isQuestionFullySolved = computed(() => {
+  if (questionState.value !== 'solution') return false
+  // If there's a continuation and it's not active yet, we're at an intermediate step
+  if (currentQuestion.value.continuation && !continuationActive.value) return false
+  return true
+})
+
 // Actual progress (internal)
 const actualProgress = computed(() => {
-  const completed = currentQuestionIndex.value + (questionState.value === 'solution' ? 1 : 0)
+  const completed = currentQuestionIndex.value + (isQuestionFullySolved.value ? 1 : 0)
   return (completed / totalChallenges.value) * 100
 })
 // Displayed progress (synced with explosion animation at 1350ms)
@@ -259,7 +335,7 @@ const coachMessage = computed(() => {
   if (lessonState.value === 'lesson-intro') {
     return currentLesson.value.introduction
   }
-  const q = currentQuestion.value
+  const q = activeMoveData.value
   switch (questionState.value) {
     case 'intro': return q.intro
     case 'wrong': return q.wrong
@@ -299,13 +375,14 @@ const coachState = computed(() => {
 const moveNotation = computed(() => {
   if (!lastMove.value) return ''
   // Format: piece + destination square (e.g., "Rxd6", "Kg2", "e4")
-  const correct = currentQuestion.value.correctMove
+  const correct = activeMoveData.value.correctMove
   const piece = correct.piece || ''
   const to = questionState.value === 'wrong' ? lastMove.value.to : correct.to
   // For non-pawn pieces, prepend the piece letter
   if (piece && piece !== 'P') {
     // Check if it's a capture (different source column)
-    const isCapture = questionState.value === 'solution' && currentQuestion.value.solution.toLowerCase().includes('capture')
+    const solutionText = activeMoveData.value.solution || ''
+    const isCapture = questionState.value === 'solution' && solutionText.toLowerCase().includes('capture')
     return isCapture ? `${piece}x${to}` : `${piece}${to}`
   }
   return to
@@ -477,6 +554,10 @@ const loadQuestion = (index) => {
   lastMove.value = null
   // Clear checkmate highlight when loading new question
   checkmateHighlight.value = null
+  // Reset continuation state
+  continuationActive.value = false
+  continuationData.value = null
+  intermediateCorrectSquare.value = null
 }
 
 // Get piece on a specific square
@@ -536,30 +617,11 @@ const handleSquareClick = (square) => {
     return
   }
   
-  // Attempt move
+  // Attempt move via tryMove (handles both single and multi-move questions)
   const from = selectedSquare.value
   const to = square
-  const movingPiece = getPieceOnSquare(from)
   
-  if (!movingPiece) {
-    selectedSquare.value = null
-    return
-  }
-  
-  // Check if this is the correct move
-  const correct = currentQuestion.value.correctMove
-  if (from === correct.from && to === correct.to) {
-    // Correct move!
-    makeMove(from, to)
-    streak.value++
-    questionState.value = 'solution'
-    lastMove.value = { from, to }
-  } else {
-    // Wrong move - reset streak
-    streak.value = 0
-    questionState.value = 'wrong'
-  }
-  
+  tryMove(from, to)
   selectedSquare.value = null
 }
 
@@ -802,6 +864,31 @@ const triggerCheckmateAnimation = (kingSquare, isBlackKing, onComplete) => {
   }, 800)
 }
 
+// Auto-play the opponent's response move after an intermediate correct move
+const autoPlayOpponentMove = (continuation) => {
+  const oppMove = continuation.opponentMove
+  const isCapture = getPieceOnSquare(oppMove.to) !== undefined
+  
+  // Execute opponent move on the board
+  makeMove(oppMove.from, oppMove.to)
+  lastMove.value = { from: oppMove.from, to: oppMove.to }
+  
+  // Play move/capture sound
+  if (isCapture) {
+    playSound('capture')
+  } else {
+    playSound('move')
+  }
+  
+  // Activate continuation state
+  continuationActive.value = true
+  continuationData.value = continuation
+  
+  // Set question state to intro for the next sub-move
+  questionState.value = 'intro'
+  selectedSquare.value = null
+}
+
 // Try to make a move (used by both click and drag)
 const tryMove = (from, to) => {
   if (questionState.value === 'solution') return false
@@ -814,51 +901,79 @@ const tryMove = (from, to) => {
     return false // Illegal move - don't allow it
   }
   
-  // Check if this is the correct move
-  const correct = currentQuestion.value.correctMove
+  // Check if this is the correct move (use active move data for continuation support)
+  const correct = activeMoveData.value.correctMove
+  const hasContinuation = !continuationActive.value && currentQuestion.value.continuation
+  
   if (from === correct.from && to === correct.to) {
     // Check if it's a capture (piece on target square)
     const isCapture = getPieceOnSquare(to) !== undefined
-    // Check if it's checkmate (has kingSquare field in lesson data)
-    const isCheckmate = currentQuestion.value.kingSquare != null
-    const kingSquare = currentQuestion.value.kingSquare
     
-    // Correct move!
-    makeMove(from, to)
-    streak.value++
-    questionState.value = 'solution'
-    lastMove.value = { from, to }
-    
-    // Play appropriate sound - use puzzle correct sound
-    playPuzzleSound('correct')
-    
-    // Also play the move/capture/check sound for tactile feedback
-    if (isCheckmate) {
-      playSound('check')
-    } else if (isCapture) {
-      playSound('capture')
-    } else {
-      playSound('move')
-    }
-    
-    // Trigger animations based on whether it's a checkmate
-    if (isCheckmate) {
-      // Determine king color based on side to move (FEN has 'w' = white to move, so black king is checkmated)
-      const isBlackKing = currentQuestion.value.fen.includes(' w ')
-      // #region agent log
-      fetch('http://127.0.0.1:7244/ingest/9dc99f67-e73d-4770-bc76-e927450ee409',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'App.vue:714',message:'isBlackKing calculation',data:{fen:currentQuestion.value.fen,hasWhiteToMove:currentQuestion.value.fen.includes(' w '),isBlackKing},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'H1'})}).catch(()=>{});
-      // #endregion
+    if (hasContinuation) {
+      // ---- INTERMEDIATE CORRECT MOVE (has continuation) ----
+      // Don't increment streak yet; save it for the final move
+      makeMove(from, to)
+      questionState.value = 'solution' // Shows intermediate solution text in coach bubble
+      lastMove.value = { from, to }
       
-      // Trigger checkmate animation first, then regular animations
-      triggerCheckmateAnimation(kingSquare, isBlackKing, () => {
-        triggerCorrectMoveAnimations(to, streak.value)
-      })
+      // Play correct sound + move/capture sound
+      playPuzzleSound('correct')
+      if (isCapture) {
+        playSound('capture')
+      } else {
+        playSound('move')
+      }
+      
+      // Show green checkmark badge on the square
+      intermediateCorrectSquare.value = to
+      
+      // After 500ms, auto-play opponent response
+      setTimeout(() => {
+        intermediateCorrectSquare.value = null
+        autoPlayOpponentMove(currentQuestion.value.continuation)
+      }, 500)
+      
+      return true
     } else {
-      // Regular two-animation sequence (Correct! then Streak X)
-      triggerCorrectMoveAnimations(to, streak.value)
+      // ---- FINAL CORRECT MOVE (no continuation, or already in continuation) ----
+      // Check if it's checkmate (has kingSquare field in lesson data)
+      const isCheckmate = currentQuestion.value.kingSquare != null
+      const kingSquare = currentQuestion.value.kingSquare
+      
+      // Correct move!
+      makeMove(from, to)
+      streak.value++
+      questionState.value = 'solution'
+      lastMove.value = { from, to }
+      
+      // Play appropriate sound - use puzzle correct sound
+      playPuzzleSound('correct')
+      
+      // Also play the move/capture/check sound for tactile feedback
+      if (isCheckmate) {
+        playSound('check')
+      } else if (isCapture) {
+        playSound('capture')
+      } else {
+        playSound('move')
+      }
+      
+      // Trigger animations based on whether it's a checkmate
+      if (isCheckmate) {
+        // Determine king color based on side to move (FEN has 'w' = white to move, so black king is checkmated)
+        const isBlackKing = currentQuestion.value.fen.includes(' w ')
+        
+        // Trigger checkmate animation first, then regular animations
+        triggerCheckmateAnimation(kingSquare, isBlackKing, () => {
+          triggerCorrectMoveAnimations(to, streak.value)
+        })
+      } else {
+        // Regular two-animation sequence (Correct! then Streak X)
+        triggerCorrectMoveAnimations(to, streak.value)
+      }
+      
+      return true
     }
-    
-    return true
   } else {
     // Wrong move - still execute the move visually
     const isCapture = getPieceOnSquare(to) !== undefined
@@ -966,19 +1081,60 @@ const handleHint = () => {
 }
 
 const showSolution = () => {
-  // Show the solution (correct move) and transition to solution state
-  const correct = currentQuestion.value.correctMove
-  makeMove(correct.from, correct.to)
-  questionState.value = 'solution'
-  lastMove.value = { from: correct.from, to: correct.to }
-  playSound('move')
+  if (continuationActive.value && continuationData.value) {
+    // Show solution for the continuation move
+    const correct = continuationData.value.correctMove
+    makeMove(correct.from, correct.to)
+    questionState.value = 'solution'
+    lastMove.value = { from: correct.from, to: correct.to }
+    playSound('move')
+  } else if (currentQuestion.value.continuation) {
+    // Show solution for intermediate move, then auto-play opponent and show final solution
+    const correct = currentQuestion.value.correctMove
+    makeMove(correct.from, correct.to)
+    lastMove.value = { from: correct.from, to: correct.to }
+    playSound('move')
+    // Auto-play opponent move and show continuation solution
+    const cont = currentQuestion.value.continuation
+    setTimeout(() => {
+      autoPlayOpponentMove(cont)
+      // Now show the final solution
+      const finalCorrect = cont.correctMove
+      makeMove(finalCorrect.from, finalCorrect.to)
+      questionState.value = 'solution'
+      lastMove.value = { from: finalCorrect.from, to: finalCorrect.to }
+      playSound('move')
+    }, 500)
+  } else {
+    // Normal single-move solution
+    const correct = currentQuestion.value.correctMove
+    makeMove(correct.from, correct.to)
+    questionState.value = 'solution'
+    lastMove.value = { from: correct.from, to: correct.to }
+    playSound('move')
+  }
   // Update progress immediately (no animation)
   displayedProgress.value = actualProgress.value
   displayedStreak.value = streak.value
 }
 
 const handleRetry = () => {
-  loadQuestion(currentQuestionIndex.value)
+  if (continuationActive.value) {
+    // Retry from the continuation position: re-parse original FEN,
+    // replay the first correct move, then replay the opponent move
+    const q = currentQuestion.value
+    const cont = q.continuation
+    pieces.value = parseFEN(q.fen)
+    makeMove(q.correctMove.from, q.correctMove.to)
+    makeMove(cont.opponentMove.from, cont.opponentMove.to)
+    // Reset state for continuation retry
+    questionState.value = 'intro'
+    selectedSquare.value = null
+    lastMove.value = { from: cont.opponentMove.from, to: cont.opponentMove.to }
+    intermediateCorrectSquare.value = null
+  } else {
+    loadQuestion(currentQuestionIndex.value)
+  }
   displayedProgress.value = actualProgress.value
   displayedStreak.value = streak.value
 }
@@ -1151,6 +1307,17 @@ onUnmounted(() => {
                 <span class="checkmate-label-text">Checkmate</span>
               </div>
 
+              <!-- Intermediate Correct Badge (green coin at top-right, same position as skill/brilliant coins) -->
+              <div 
+                v-if="intermediateCorrectSquare === square" 
+                class="intermediate-correct-badge"
+              >
+                <svg width="29" height="29" viewBox="0 0 29 29" fill="none">
+                  <circle cx="14.5" cy="14.5" r="14.5" fill="#81B64C"/>
+                  <path d="M8.5 15L12.5 19L20.5 11" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+              </div>
+
               <!-- Piece -->
               <img 
                 v-if="getPieceOnSquare(square) && !isPieceDragged(square)" 
@@ -1270,8 +1437,8 @@ onUnmounted(() => {
                 Start
               </CcButton>
             </template>
-            <!-- Complete state: only Complete button -->
-            <template v-else-if="questionState === 'solution' && currentQuestionIndex >= totalChallenges - 1">
+            <!-- Complete state: only Complete button (fully solved, last question) -->
+            <template v-else-if="isQuestionFullySolved && currentQuestionIndex >= totalChallenges - 1">
               <CcButton 
                 variant="primary" 
                 size="large" 
@@ -1291,7 +1458,7 @@ onUnmounted(() => {
             <!-- Normal states (intro, hint, solution) -->
             <template v-else>
               <CcButton variant="secondary" size="large" :icon="{ name: icons.video }" @click="openVideo">Video</CcButton>
-              <template v-if="questionState === 'solution'">
+              <template v-if="isQuestionFullySolved">
                 <CcButton 
                   variant="primary" 
                   size="large" 
@@ -1697,6 +1864,21 @@ body {
     height: 300px;
     opacity: 0;
   }
+}
+
+/* ========== INTERMEDIATE CORRECT BADGE ========== */
+/* Small green checkmark coin at top-right of square */
+
+.intermediate-correct-badge {
+  position: absolute;
+  top: 7px;
+  left: 90%;
+  transform: translate(-50%, -50%);
+  width: 29px;
+  height: 29px;
+  z-index: 5;
+  pointer-events: none;
+  filter: drop-shadow(0px 2px 0px rgba(0, 0, 0, 0.25));
 }
 
 /* ========== SKILL HIGHLIGHT ANIMATIONS ========== */
