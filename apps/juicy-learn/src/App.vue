@@ -170,6 +170,7 @@ const lessons = [
       {
         fen: '2r4k/p5pp/1b3n2/3Np3/P3Pp2/2r2B1P/5PP1/R4RK1 w - - 0 1',
         correctMove: { from: 'd5', to: 'c3', piece: 'N' }, // Nxc3
+        opponentResponse: { from: 'c8', to: 'c3' }, // Rxc3 - opponent recaptures
         intro: 'Which move wins material for White?',
         wrong: 'This move does not gain material for White. Try again!',
         hint: 'Which black piece can be captured that is a greater value than the white knight?',
@@ -316,6 +317,8 @@ const isQuestionFullySolved = computed(() => {
   if (questionState.value !== 'solution') return false
   // If there's a continuation and it's not active yet, we're at an intermediate step
   if (currentQuestion.value.continuation && !continuationActive.value) return false
+  // If there's an opponent response pending (badge still showing), not yet fully solved
+  if (intermediateCorrectSquare.value !== null) return false
   return true
 })
 
@@ -937,13 +940,15 @@ const tryMove = (from, to) => {
       return true
     } else {
       // ---- FINAL CORRECT MOVE (no continuation, or already in continuation) ----
+      // Check if question ends with an opponent response (e.g. recapture)
+      const hasOpponentResponse = !continuationActive.value && currentQuestion.value.opponentResponse
+      
       // Check if it's checkmate (has kingSquare field in lesson data)
       const isCheckmate = currentQuestion.value.kingSquare != null
       const kingSquare = currentQuestion.value.kingSquare
       
       // Correct move!
       makeMove(from, to)
-      streak.value++
       questionState.value = 'solution'
       lastMove.value = { from, to }
       
@@ -959,18 +964,49 @@ const tryMove = (from, to) => {
         playSound('move')
       }
       
-      // Trigger animations based on whether it's a checkmate
-      if (isCheckmate) {
-        // Determine king color based on side to move (FEN has 'w' = white to move, so black king is checkmated)
-        const isBlackKing = currentQuestion.value.fen.includes(' w ')
+      if (hasOpponentResponse) {
+        // ---- CORRECT MOVE WITH OPPONENT RESPONSE ----
+        // Show badge on user's move, then opponent recaptures, then full celebration
+        intermediateCorrectSquare.value = to
         
-        // Trigger checkmate animation first, then regular animations
-        triggerCheckmateAnimation(kingSquare, isBlackKing, () => {
-          triggerCorrectMoveAnimations(to, streak.value)
-        })
+        setTimeout(() => {
+          intermediateCorrectSquare.value = null
+          
+          const oppMove = currentQuestion.value.opponentResponse
+          const oppIsCapture = getPieceOnSquare(oppMove.to) !== undefined
+          
+          // Execute opponent move on the board
+          makeMove(oppMove.from, oppMove.to)
+          lastMove.value = { from: oppMove.from, to: oppMove.to }
+          
+          // Play move/capture sound for opponent
+          if (oppIsCapture) {
+            playSound('capture')
+          } else {
+            playSound('move')
+          }
+          
+          // Now trigger full animations from opponent's landing square
+          streak.value++
+          triggerCorrectMoveAnimations(oppMove.to, streak.value)
+        }, 500)
       } else {
-        // Regular two-animation sequence (Correct! then Streak X)
-        triggerCorrectMoveAnimations(to, streak.value)
+        // ---- STANDARD FINAL MOVE (no opponent response) ----
+        streak.value++
+        
+        // Trigger animations based on whether it's a checkmate
+        if (isCheckmate) {
+          // Determine king color based on side to move (FEN has 'w' = white to move, so black king is checkmated)
+          const isBlackKing = currentQuestion.value.fen.includes(' w ')
+          
+          // Trigger checkmate animation first, then regular animations
+          triggerCheckmateAnimation(kingSquare, isBlackKing, () => {
+            triggerCorrectMoveAnimations(to, streak.value)
+          })
+        } else {
+          // Regular two-animation sequence (Correct! then Streak X)
+          triggerCorrectMoveAnimations(to, streak.value)
+        }
       }
       
       return true
@@ -1106,6 +1142,27 @@ const showSolution = () => {
       questionState.value = 'solution'
       lastMove.value = { from: finalCorrect.from, to: finalCorrect.to }
       playSound('move')
+    }, 500)
+  } else if (currentQuestion.value.opponentResponse) {
+    // Solution with opponent response: play user move, then opponent recapture
+    const correct = currentQuestion.value.correctMove
+    makeMove(correct.from, correct.to)
+    lastMove.value = { from: correct.from, to: correct.to }
+    playSound('move')
+    const oppMove = currentQuestion.value.opponentResponse
+    setTimeout(() => {
+      const oppIsCapture = getPieceOnSquare(oppMove.to) !== undefined
+      makeMove(oppMove.from, oppMove.to)
+      lastMove.value = { from: oppMove.from, to: oppMove.to }
+      questionState.value = 'solution'
+      if (oppIsCapture) {
+        playSound('capture')
+      } else {
+        playSound('move')
+      }
+      // Update progress immediately (no animation)
+      displayedProgress.value = actualProgress.value
+      displayedStreak.value = streak.value
     }, 500)
   } else {
     // Normal single-move solution
