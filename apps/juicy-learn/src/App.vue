@@ -591,7 +591,8 @@ const isWrongMove = (square) => {
 // MOVE HANDLING
 // ============================================
 const handleSquareClick = (square) => {
-  // If already solved, don't allow more moves
+  // Don't allow moves during lesson intro or after solving
+  if (lessonState.value === 'lesson-intro') return
   if (questionState.value === 'solution') return
   
   const piece = getPieceOnSquare(square)
@@ -1001,6 +1002,7 @@ const tryMove = (from, to) => {
 // DRAG & DROP
 // ============================================
 const handleDragStart = (event, square) => {
+  if (lessonState.value === 'lesson-intro') return
   if (questionState.value === 'solution') return
   
   const piece = getPieceOnSquare(square)
@@ -1202,6 +1204,13 @@ const prevQuestion = () => {
 // ============================================
 // INITIALIZATION
 // ============================================
+// Read lesson index from URL query param (e.g. ?lesson=1)
+const urlParams = new URLSearchParams(window.location.search)
+const lessonParam = parseInt(urlParams.get('lesson'), 10)
+if (!isNaN(lessonParam) && lessonParam >= 0 && lessonParam < lessons.length) {
+  currentLessonIndex.value = lessonParam
+}
+
 // Load first question immediately during setup (fixes HMR issues)
 loadQuestion(0)
 displayedProgress.value = 0
