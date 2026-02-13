@@ -10,10 +10,6 @@ const PUZZLE_SOUNDS = {
   correct: 'https://www.chess.com/bundles/web/sounds/mp3/correct.mp3',
   incorrect: 'https://www.chess.com/bundles/web/sounds/mp3/incorrect.mp3',
   puzzleSolved: 'https://www.chess.com/bundles/web/sounds/puzzles/solving/puzzle-solved.wav',
-  coinHit1: 'https://www.chess.com/bundles/web/sounds/puzzles/solving/coin_hit_1.wav',
-  coinHit2: 'https://www.chess.com/bundles/web/sounds/puzzles/solving/coin_hit_2.wav',
-  coinHit3: 'https://www.chess.com/bundles/web/sounds/puzzles/solving/coin_hit_3.wav',
-  rewardCoin: 'https://www.chess.com/bundles/web/sounds/puzzles/solving/reward_points_coin.wav',
   levelUp: 'https://www.chess.com/bundles/web/sounds/puzzles/level_up/level_up_award.wav',
 }
 
@@ -58,40 +54,8 @@ const icons = {
 // ============================================
 // ANIMATION COLORS (dynamic based on streak)
 // ============================================
-// Streak color values (matching CSS variables)
-const STREAK_COLORS = {
-  green: '#81B64C',      // --color-green-400 / text-win (first point)
-  lowest: '#E3AA24',     // --color-streak-lowest (gold, 2 correct)
-  low: '#E89B3C',        // --color-streak-low (light orange, 3-4 correct)
-  medium: '#E07A3C',     // --color-streak-medium (orange, 5-6 correct)
-  high: '#DC4C3C',       // --color-streak-high (red, 7+ correct)
-}
-
-// Get animation color based on streak (called BEFORE streak is incremented)
-const getAnimationColor = (currentStreak) => {
-  // After this move, streak will be currentStreak + 1
-  const newStreak = currentStreak + 1
-  if (newStreak <= 1) return STREAK_COLORS.green
-  if (newStreak === 2) return STREAK_COLORS.lowest
-  if (newStreak <= 4) return STREAK_COLORS.low
-  if (newStreak <= 6) return STREAK_COLORS.medium
-  return STREAK_COLORS.high
-}
-
-// Current animation color (reactive) - starts with green
-const animationColor = ref(STREAK_COLORS.green)
-
-// Brilliant colors (fixed)
-const BRILLIANT_COLORS = {
-  overlay: '#26C2A3',      // Teal overlay
-  coin: '#26C2A3',         // Teal coin/pill
-}
-
-// Animation colors object for CSS v-bind (used in style section)
+// Animation colors for brilliant and checkmate highlights (used in CSS v-bind)
 const ANIMATION_COLORS = {
-  skill: {
-    textColor: '#81B64C',  // Green text on white pill
-  },
   brilliant: {
     overlay: '#26C2A3',    // Teal overlay
     coin: '#26C2A3',       // Teal coin
@@ -146,9 +110,8 @@ const streak = ref(0)
 const selectedSquare = ref(null)
 const lastMove = ref(null) // { from, to }
 
-// Hint state (two-step: first highlight piece, then show arrow)
+// Hint state
 const hintHighlightSquare = ref(null)  // square to highlight with blue overlay (piece to move)
-const showMoveArrow = ref(false)       // whether the hint arrow is visible
 const checkpointPieces = ref([]) // Saved board state for retry after wrong move
 const lives = ref(puzzle.results.totalLives) // Hearts / lives remaining
 const timerSeconds = ref(0) // Puzzle timer in seconds
@@ -190,11 +153,6 @@ const dragPosition = ref({ x: 0, y: 0 })
 const boardRef = ref(null)
 
 // Animation state
-const skillHighlight = ref(null)      // Square to highlight with skill animation (e.g., 'd6')
-const skillHighlightLabel = ref(null) // Label text for skill highlight (e.g., 'Correct!')
-const showExplosion = ref(false)      // Show the explosion circle at progress bar
-
-// Piece movement animation state
 const movingPiece = ref(null)  // { type, fromSquare, toSquare, startPos, endPos }
 const brilliantHighlight = ref(null)  // Square to highlight with brilliant animation
 const checkmateHighlight = ref(null)  // Square for checkmate animation (on checkmated king)
@@ -202,7 +160,6 @@ const checkmateKingColor = ref('black')  // 'black' or 'white' - color of the ch
 
 // Refs for animation target positioning
 const progressBarRef = ref(null)      // Reference to progress bar element
-const explosionTop = ref(168)         // Y position for explosion, updated dynamically
 
 // Computed
 const currentExpectedMove = computed(() => puzzle.moves[currentMoveIndex.value])
@@ -220,75 +177,6 @@ const actualProgress = computed(() => {
 const displayedProgress = ref(0)
 const displayedStreak = ref(0)
 
-// Arrow data for hint move arrow (Chess.com style: single filled polygon with rectangular body + wide triangular head)
-// Proportions from Chess.com's UniversalBoardDrawer: lineWidth=15, arrowheadWidth=55, arrowheadHeight=45, startOffset=20 per 100px square
-const moveArrowData = computed(() => {
-  if (!showMoveArrow.value) return null
-  const expected = currentExpectedMove.value
-  if (!expected) return null
-  
-  const toPixel = (sq) => {
-    const file = sq.charCodeAt(0) - 'a'.charCodeAt(0) // 0-7
-    const rank = parseInt(sq[1]) - 1 // 0-7
-    return {
-      x: file * SQUARE_SIZE + SQUARE_SIZE / 2,
-      y: (7 - rank) * SQUARE_SIZE + SQUARE_SIZE / 2
-    }
-  }
-  
-  const from = toPixel(expected.from)
-  const to = toPixel(expected.to)
-  
-  const dx = to.x - from.x
-  const dy = to.y - from.y
-  const len = Math.sqrt(dx * dx + dy * dy)
-  if (len === 0) return null
-  
-  // Chess.com arrow proportions (per 100px square, scaled by SQUARE_SIZE)
-  const scale = SQUARE_SIZE / 100
-  const bodyWidth = 15 * scale       // width of rectangular shaft
-  const headWidth = 55 * scale       // full width of triangular arrowhead
-  const headLength = 45 * scale      // length of arrowhead from base to tip
-  const startOffset = 20 * scale     // offset from source square center
-  
-  // Unit direction vector (from → to)
-  const dirX = dx / len
-  const dirY = dy / len
-  // Perpendicular vector (rotated 90° CCW)
-  const perpX = -dirY
-  const perpY = dirX
-  
-  // 7-point polygon: rectangular body seamlessly connected to wide triangular head
-  // Points go clockwise: start-left → neck-left → head-left → tip → head-right → neck-right → start-right
-  const neckDist = len - headLength  // distance from source to where head begins
-  
-  const points = [
-    // Start-left (body begins offset from source center)
-    { x: from.x + dirX * startOffset + perpX * bodyWidth / 2,
-      y: from.y + dirY * startOffset + perpY * bodyWidth / 2 },
-    // Neck-left (body meets arrowhead)
-    { x: from.x + dirX * neckDist + perpX * bodyWidth / 2,
-      y: from.y + dirY * neckDist + perpY * bodyWidth / 2 },
-    // Head-left (arrowhead widens)
-    { x: from.x + dirX * neckDist + perpX * headWidth / 2,
-      y: from.y + dirY * neckDist + perpY * headWidth / 2 },
-    // Tip (exactly at target square center)
-    { x: to.x, y: to.y },
-    // Head-right (arrowhead widens, other side)
-    { x: from.x + dirX * neckDist - perpX * headWidth / 2,
-      y: from.y + dirY * neckDist - perpY * headWidth / 2 },
-    // Neck-right (body meets arrowhead, other side)
-    { x: from.x + dirX * neckDist - perpX * bodyWidth / 2,
-      y: from.y + dirY * neckDist - perpY * bodyWidth / 2 },
-    // Start-right (body begins offset from source center, other side)
-    { x: from.x + dirX * startOffset - perpX * bodyWidth / 2,
-      y: from.y + dirY * startOffset - perpY * bodyWidth / 2 },
-  ]
-  
-  const polygon = points.map(p => `${p.x},${p.y}`).join(' ')
-  
-  return { polygon }
-})
 
 // Coach header text (overrides state-based header)
 const coachHeaderText = computed(() => {
@@ -407,50 +295,8 @@ const BOARD_SIZE = 680 // pixels
 const SQUARE_SIZE = BOARD_SIZE / 8
 const GAP_SIZE = 32 // gap between board and panel (3.2rem)
 
-// Calculate coin fall position for a given square (as CSS values)
-// Target: start of the progress bar in the sidebar
-const getCoinFallPosition = (square) => {
-  if (!square) return { x: '800%', y: '100%' }
-  
-  const fileIndex = files.indexOf(square[0])
-  const rankIndex = 8 - parseInt(square[1], 10) // 0 = top row (rank 8)
-  
-  // Square's position on the board
-  const squareLeft = fileIndex * SQUARE_SIZE
-  const squareTop = rankIndex * SQUARE_SIZE
-  
-  // Target position: start of progress bar in sidebar
-  // Board (680px) + Gap (32px) + Panel padding (24px) + small offset = ~750px from board left
-  // Progress bar is roughly 240px from top of layout (header 48px + padding 24px + coach ~120px + gap 16px + label 20px)
-  const targetX = BOARD_SIZE + GAP_SIZE + 40 // Start of progress bar
-  const targetY = 240 // Approximate Y position of progress bar
-  
-  // Final position relative to square (for CSS left/top)
-  const finalLeft = targetX - squareLeft
-  const finalTop = targetY - squareTop
-  
-  // Convert to percentage of square size
-  return {
-    x: (finalLeft / SQUARE_SIZE) * 100,
-    y: (finalTop / SQUARE_SIZE) * 100
-  }
-}
-
-// Get CSS custom properties for the skill highlight square
-const getSkillHighlightStyle = computed(() => {
-  if (!skillHighlight.value) return {}
-  const pos = getCoinFallPosition(skillHighlight.value)
-  return {
-    '--coin-fall-x': `${pos.x}%`,
-    '--coin-fall-y': `${pos.y}%`
-  }
-})
-
 // Check if square has hint highlight (blue overlay on piece to move)
 const hasHintHighlight = (square) => hintHighlightSquare.value === square
-
-// Check if square has skill highlight
-const hasSkillHighlight = (square) => skillHighlight.value === square
 
 // Check if square has brilliant highlight
 const hasBrilliantHighlight = (square) => brilliantHighlight.value === square
@@ -524,7 +370,6 @@ const restoreCheckpoint = () => {
   lastMove.value = null
   checkmateHighlight.value = null
   hintHighlightSquare.value = null
-  showMoveArrow.value = false
   moveState.value = 'awaiting'
 }
 
@@ -539,7 +384,6 @@ const loadPuzzle = () => {
   lastMove.value = null
   checkmateHighlight.value = null
   hintHighlightSquare.value = null
-  showMoveArrow.value = false
 }
 
 // Reset the puzzle back to the intro screen
@@ -725,111 +569,6 @@ const makeMove = (from, to) => {
   }
 }
 
-// Trigger a single skill animation on a square
-// color: the color to use for the animation
-// label: the text to show (e.g., "Correct!", "Streak 1")
-// onExplosion: callback when explosion happens (for progress bar/streak updates)
-// onComplete: callback when animation finishes
-const triggerSingleAnimation = (square, color, label, onExplosion = null, onComplete = null) => {
-  // Note: checkmateHighlight is NOT cleared here - checkmate coin stays visible
-  
-  animationColor.value = color
-  skillHighlight.value = square
-  skillHighlightLabel.value = label
-  
-  // Calculate explosion position based on progress bar
-  if (progressBarRef.value) {
-    const barRect = progressBarRef.value.getBoundingClientRect()
-    const panelContent = progressBarRef.value.closest('.panel-content')
-    if (panelContent) {
-      const panelRect = panelContent.getBoundingClientRect()
-      explosionTop.value = (barRect.top + barRect.height / 2) - panelRect.top
-    }
-  }
-  
-  // After 800ms (morph) + 50ms pause + 500ms (fall), show explosion
-  setTimeout(() => {
-    showExplosion.value = true
-    
-    // Play coin hit sound when coin lands
-    const coinSounds = ['coinHit1', 'coinHit2', 'coinHit3']
-    const randomCoin = coinSounds[Math.floor(Math.random() * coinSounds.length)]
-    playPuzzleSound(randomCoin)
-    
-    if (onExplosion) onExplosion()
-    
-    // Clear explosion after 500ms
-    setTimeout(() => {
-      showExplosion.value = false
-    }, 500)
-  }, 1350)
-  
-  // Clear highlight after total animation duration
-  setTimeout(() => {
-    skillHighlight.value = null
-    skillHighlightLabel.value = null
-    // Use nextTick to ensure DOM updates before starting next animation
-    // This allows v-if to remove the element before re-adding it
-    if (onComplete) {
-      nextTick(() => {
-        onComplete()
-      })
-    }
-  }, 1850)
-}
-
-// Trigger the full correct move animation sequence:
-// 1. "Correct!" animation (always green) - grows progress bar
-// 2. "Streak X" animation (streak-colored) - updates streak counter/color
-const triggerCorrectMoveAnimations = (square, streakNumber) => {
-  const greenColor = STREAK_COLORS.green // Always green for "Correct!"
-  const streakColor = getAnimationColor(streakNumber - 1) // Color for this streak level
-  
-  // Animation 1: "Correct!" (green)
-  triggerSingleAnimation(
-    square,
-    greenColor,
-    'Correct!',
-    () => {
-      // On explosion: grow the progress bar
-      displayedProgress.value = actualProgress.value
-    },
-    () => {
-      // On complete: start the streak animation
-      triggerSingleAnimation(
-        square,
-        streakColor,
-        `Streak ${streakNumber}`,
-        () => {
-          // On explosion: update streak counter and color
-          displayedStreak.value = streak.value
-          
-          // Play level up sound on streak milestones (5, 7, 10+)
-          if (streak.value === 5 || streak.value === 7 || streak.value >= 10) {
-            playPuzzleSound('levelUp')
-          }
-        },
-        null
-      )
-    }
-  )
-}
-
-// Legacy function for backwards compatibility (used by solution button, etc.)
-const triggerSkillAnimation = (square, label = 'Correct!', setColor = true) => {
-  const color = setColor ? getAnimationColor(streak.value) : animationColor.value
-  triggerSingleAnimation(
-    square,
-    color,
-    label,
-    () => {
-      displayedProgress.value = actualProgress.value
-      displayedStreak.value = streak.value
-    },
-    null
-  )
-}
-
 // Trigger brilliant highlight animation on a square
 const triggerBrilliantAnimation = (square) => {
   brilliantHighlight.value = square
@@ -911,7 +650,6 @@ const tryMove = (from, to) => {
   
   // Clear hint visuals when user makes any move
   hintHighlightSquare.value = null
-  showMoveArrow.value = false
   
   // Check if this is the correct move
   const expected = currentExpectedMove.value
@@ -938,24 +676,20 @@ const tryMove = (from, to) => {
       playSound('move')
     }
     
-    // Trigger animations based on whether it's a checkmate
+    // Update progress immediately (no coin animation)
+    displayedProgress.value = actualProgress.value
+    displayedStreak.value = streak.value
+    
     if (isCheckmate) {
       const isBlackKing = true // White checkmates black king
-      
       triggerCheckmateAnimation(kingSquare, isBlackKing, () => {
-        triggerCorrectMoveAnimations(to, streak.value)
-      })
-      // After all animations, mark puzzle as solved
-      setTimeout(() => {
         puzzlePhase.value = 'solved'
         stopTimer()
         playPuzzleSound('puzzleSolved')
-      }, 5000)
+      })
     } else {
-      // Regular two-animation sequence (Correct! then Streak X)
-      triggerCorrectMoveAnimations(to, streak.value)
-      // After animations complete, advance to next move
-      scheduleNextMove()
+      // Advance to next move after a short delay
+      scheduleNextMove(1500)
     }
     
     return true
@@ -1062,18 +796,15 @@ const isPieceDragged = (square) => {
 // ============================================
 const handleHint = () => {
   if (moveState.value === 'correct' || moveState.value === 'computer-moving') return
+  if (moveState.value === 'hint') return // Already used hint
   streak.value = 0 // Reset streak on hint
+  loseLife() // Lose a life (rightmost green heart becomes broken)
   moveState.value = 'hint'
   // Highlight the piece that needs to move with blue overlay
   const expected = currentExpectedMove.value
   if (expected) {
     hintHighlightSquare.value = expected.from
   }
-  showMoveArrow.value = false // Clear arrow if re-clicking hint
-}
-
-const handleShowMoveArrow = () => {
-  showMoveArrow.value = true
 }
 
 const showSolution = () => {
@@ -1164,28 +895,6 @@ onUnmounted(() => {
                 class="hint-highlight-overlay"
               ></div>
 
-              <!-- Skill Highlight Overlay -->
-              <div 
-                v-if="hasSkillHighlight(square)" 
-                class="skill-highlight-overlay"
-              ></div>
-              
-              <!-- Skill +1 Icon (same animation as original star) -->
-              <div 
-                v-if="hasSkillHighlight(square)" 
-                class="skill-plus-icon" 
-                :style="getSkillHighlightStyle"
-              >+1</div>
-              
-              <!-- Skill Label Bubble (transforms from white pill to gold circle) -->
-              <div 
-                v-if="hasSkillHighlight(square) && skillHighlightLabel" 
-                class="skill-label-bubble"
-                :style="getSkillHighlightStyle"
-              >
-                <span class="skill-label-text">{{ skillHighlightLabel }}</span>
-              </div>
-
               <!-- Brilliant Highlight Overlay (teal color) -->
               <div 
                 v-if="hasBrilliantHighlight(square)" 
@@ -1247,13 +956,6 @@ onUnmounted(() => {
               <span v-if="square[0] === 'a'" class="coord rank-coord">{{ square[1] }}</span>
             </div>
 
-            <!-- Hint Move Arrow (SVG overlay, Chess.com style: single filled polygon with body + wide head) -->
-            <svg v-if="showMoveArrow && moveArrowData" class="board-arrow-overlay" viewBox="0 0 680 680">
-              <polygon
-                :points="moveArrowData.polygon"
-                fill="#F7A501" opacity="0.8"
-              />
-            </svg>
           </div>
           
         </div>
@@ -1297,12 +999,6 @@ onUnmounted(() => {
 
         <!-- Content -->
         <div class="panel-content">
-          <!-- Explosion Circle (appears at left edge as semicircle) -->
-          <div 
-            v-if="showExplosion" 
-            class="explosion-circle"
-          ></div>
-
           <!-- Date Picker -->
           <div class="date-picker">
             <CcIconButton
@@ -1393,17 +1089,16 @@ onUnmounted(() => {
             <template v-else-if="moveState === 'correct' || moveState === 'computer-moving'">
               <!-- Waiting for animation / computer response -->
             </template>
-            <!-- Awaiting / hint: Video + Hint/Move -->
+            <!-- Awaiting / hint: Hint button -->
             <template v-else>
-              <CcButton variant="secondary" size="large" :icon="{ name: icons.video }" @click="openVideo">Video</CcButton>
               <CcButton 
                 variant="secondary" 
                 size="large" 
-                :icon="{ name: moveState === 'hint' ? 'circle-fill-question' : icons.hint }" 
-                :disabled="showMoveArrow"
-                @click="moveState === 'hint' ? handleShowMoveArrow() : handleHint()"
+                :icon="{ name: 'emote-heart-broken' }" 
+                :disabled="moveState === 'hint'"
+                @click="handleHint"
               >
-                {{ moveState === 'hint' ? 'Move' : 'Hint' }}
+                Hint
               </CcButton>
             </template>
           </div>
@@ -1510,15 +1205,6 @@ body {
   pointer-events: none;
 }
 
-/* Hint move arrow - SVG overlay on the board */
-.board-arrow-overlay {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  z-index: 5;
-  pointer-events: none;
-}
 
 .piece {
   width: 100%;
@@ -1817,247 +1503,6 @@ body {
   position: relative;
   border-radius: 3px;
   overflow: visible; /* Allow animation elements to overflow */
-}
-
-/* ========== EXPLOSION CIRCLE ========== */
-/* Positioned at left edge of panel-content as semicircle */
-.explosion-circle {
-  position: absolute;
-  background: v-bind('animationColor');
-  border-radius: 50%;
-  /* Position at left edge, dynamically aligned with progress bar center */
-  left: 0;
-  top: v-bind("explosionTop + 'px'");
-  transform: translate(-50%, -50%);
-  z-index: 10;
-  pointer-events: none;
-  /* Animation: grow from 36px to 300px, fade out */
-  animation: explosion-expand 500ms cubic-bezier(0, 0, 0.4, 1) forwards;
-}
-
-@keyframes explosion-expand {
-  0% {
-    width: 36px;
-    height: 36px;
-    opacity: 1;
-  }
-  100% {
-    width: 300px;
-    height: 300px;
-    opacity: 0;
-  }
-}
-
-/* ========== SKILL HIGHLIGHT ANIMATIONS ========== */
-/* Scaled 1.8x for 680px board (85px squares vs original 47px squares) */
-
-/* Skill Highlight Overlay */
-.skill-highlight-overlay {
-  position: absolute;
-  inset: 0;
-  background: v-bind('animationColor');
-  opacity: 0;
-  z-index: 2;
-  pointer-events: none;
-  animation: skill-overlay-animate 800ms cubic-bezier(0, 0, 0.4, 1) forwards;
-}
-
-@keyframes skill-overlay-animate {
-  /* State 1 → State 2: fade in */
-  0% {
-    opacity: 0;
-  }
-  37.5% { /* 300ms */
-    opacity: 0.8;
-  }
-  /* Hold until 500ms (62.5%) */
-  62.5% {
-    opacity: 0.8;
-  }
-  /* State 2 → State 3: fade out */
-  100% { /* 800ms */
-    opacity: 0;
-  }
-}
-
-/* Skill +1 Icon - same animation as original star, scaled 1.8x */
-.skill-plus-icon {
-  position: absolute;
-  z-index: 5;
-  pointer-events: none;
-  filter: drop-shadow(0px 2px 0px rgba(0, 0, 0, 0.25));
-  font-family: var(--font-family-heading, 'Chess Sans', sans-serif);
-  font-weight: 800;
-  color: white;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  /* Total: 800ms morph + 50ms pause + 500ms fall = 1350ms */
-  animation: skill-plus-animate 1350ms cubic-bezier(0.8, 0, 1, 1) forwards;
-}
-
-@keyframes skill-plus-animate {
-  /* State 1 (0ms) - centered, faded - 42px */
-  0% {
-    opacity: 0.1;
-    width: 42px;
-    height: 42px;
-    font-size: 27px;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%) rotate(0deg);
-  }
-  /* State 2 (300ms = 22.2%) - visible, larger - 51px (60% of 85px square) */
-  22.2% {
-    opacity: 1;
-    width: 51px;
-    height: 51px;
-    font-size: 33px;
-    top: 55%;
-    left: 50%;
-    transform: translate(-50%, -50%) rotate(0deg);
-  }
-  /* Hold State 2 (500ms = 37%) */
-  37% {
-    opacity: 1;
-    width: 51px;
-    height: 51px;
-    font-size: 33px;
-    top: 55%;
-    left: 50%;
-    transform: translate(-50%, -50%) rotate(0deg);
-  }
-  /* State 3: shrink into coin position (800ms = 59.3%) */
-  59.3% {
-    opacity: 1;
-    width: 29px;
-    height: 29px;
-    font-size: 16px;
-    top: 7px;
-    left: 90%;
-    transform: translate(-50%, -50%) rotate(0deg);
-  }
-  /* Hold State 3 - pause before fall (850ms = 63%) */
-  63% {
-    opacity: 1;
-    width: 29px;
-    height: 29px;
-    font-size: 16px;
-    top: 7px;
-    left: 90%;
-    transform: translate(-50%, -50%) rotate(0deg);
-  }
-  /* State 4: fall to target position, rotate -90° (1350ms = 100%) */
-  100% {
-    opacity: 1;
-    width: 29px;
-    height: 29px;
-    font-size: 16px;
-    top: var(--coin-fall-y, 600%);
-    left: var(--coin-fall-x, -170%);
-    transform: translate(-50%, -50%) rotate(-90deg);
-  }
-}
-
-/* Skill Label Bubble (transforms from white pill to colored circle, then falls) - scaled 1.8x */
-.skill-label-bubble {
-  position: absolute;
-  left: 90%;
-  top: -11px;
-  height: 36px;
-  z-index: 4;
-  pointer-events: none;
-  box-shadow: 0px 2px 0px rgba(0, 0, 0, 0.15);
-  white-space: nowrap;
-  overflow: hidden;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 18px;
-  --coin-color: v-bind('animationColor');
-  /* Total: 800ms morph + 50ms pause + 500ms fall = 1350ms */
-  animation: skill-pill-animate 1350ms cubic-bezier(0.8, 0, 1, 1) forwards;
-}
-
-@keyframes skill-pill-animate {
-  /* State 1: centered, faded (0ms) */
-  0% {
-    opacity: 0;
-    top: 50%;
-    left: 90%;
-    transform: translate(-50%, -50%);
-    max-width: 200px;
-    padding: 0 11px;
-    background: white;
-  }
-  /* State 2: at top, visible, white pill (300ms = 22.2%) */
-  22.2% {
-    opacity: 1;
-    top: -11px;
-    left: 90%;
-    transform: translate(-50%, 0);
-    max-width: 200px;
-    padding: 0 11px;
-    background: white;
-  }
-  /* Hold State 2 (500ms = 37%) */
-  37% {
-    opacity: 1;
-    top: -11px;
-    left: 90%;
-    transform: translate(-50%, 0);
-    max-width: 200px;
-    padding: 0 11px;
-    background: white;
-  }
-  /* State 3: colored circle (800ms = 59.3%) */
-  59.3% {
-    opacity: 1;
-    top: -11px;
-    left: 90%;
-    transform: translate(-50%, 0);
-    max-width: 36px;
-    padding: 0;
-    background: var(--coin-color);
-  }
-  /* Hold State 3 - pause before fall (850ms = 63%) */
-  63% {
-    opacity: 1;
-    top: -11px;
-    left: 90%;
-    transform: translate(-50%, 0);
-    max-width: 36px;
-    padding: 0;
-    background: var(--coin-color);
-  }
-  /* State 4: fall to target position (1350ms = 100%) */
-  100% {
-    opacity: 1;
-    top: var(--coin-fall-y, 600%);
-    left: var(--coin-fall-x, -170%);
-    transform: translate(-50%, 0);
-    max-width: 36px;
-    padding: 0;
-    background: var(--coin-color);
-  }
-}
-
-/* Text inside the pill - fades out - scaled 1.8x */
-.skill-label-text {
-  font-family: var(--font-family-heading, 'Chess Sans', sans-serif);
-  font-size: 20px;
-  font-weight: 800;
-  line-height: 36px;
-  color: v-bind('animationColor');
-  white-space: nowrap;
-  animation: skill-text-fade 800ms cubic-bezier(0, 0, 0.4, 1) forwards;
-}
-
-@keyframes skill-text-fade {
-  0% { opacity: 0; }
-  37.5% { opacity: 1; }
-  62.5% { opacity: 1; }
-  100% { opacity: 0; }
 }
 
 /* ========== BRILLIANT HIGHLIGHT ANIMATIONS ========== */
