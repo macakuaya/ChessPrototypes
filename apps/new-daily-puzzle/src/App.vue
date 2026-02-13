@@ -1085,17 +1085,13 @@ onUnmounted(() => {
               <CcButton variant="secondary" size="large" :icon="{ name: 'circle-fill-question' }" @click="showSolution">Solution</CcButton>
               <CcButton variant="danger" size="large" :icon="{ name: 'arrow-spin-undo' }" @click="handleRetry">Retry</CcButton>
             </template>
-            <!-- Correct move animating / computer moving: empty -->
-            <template v-else-if="moveState === 'correct' || moveState === 'computer-moving'">
-              <!-- Waiting for animation / computer response -->
-            </template>
-            <!-- Awaiting / hint: Hint button -->
+            <!-- Awaiting / hint / correct / computer-moving: Hint button (disabled when not awaiting) -->
             <template v-else>
               <CcButton 
                 variant="secondary" 
                 size="large" 
                 :icon="{ name: 'emote-heart-broken' }" 
-                :disabled="moveState === 'hint'"
+                :disabled="moveState !== 'awaiting'"
                 @click="handleHint"
               >
                 Hint
