@@ -276,6 +276,10 @@ const continuationActive = ref(false)  // true when playing a continuation sub-m
 const continuationData = ref(null)     // stores the continuation object from question data
 const intermediateCorrectSquare = ref(null) // square for intermediate correct animation
 
+// Hint state
+const hintHighlightSquare = ref(null)  // square to highlight with blue overlay (piece to move)
+const showMoveArrow = ref(false)       // whether the hint arrow is visible
+
 // Drag state
 const isDragging = ref(false)
 const draggedPiece = ref(null) // { type, square }
@@ -331,6 +335,77 @@ const actualProgress = computed(() => {
 const displayedProgress = ref(0)
 const displayedStreak = ref(0)
 const lessonName = computed(() => currentLesson.value.name)
+
+// Arrow data for hint move arrow (Chess.com style: single filled polygon with rectangular body + wide triangular head)
+// Proportions from Chess.com's UniversalBoardDrawer: lineWidth=15, arrowheadWidth=55, arrowheadHeight=45, startOffset=20 per 100px square
+// Uses SQUARE_SIZE (680/8 = 85) declared below with other board layout constants
+const moveArrowData = computed(() => {
+  if (!showMoveArrow.value) return null
+  const correct = activeMoveData.value.correctMove
+  if (!correct) return null
+  
+  const toPixel = (sq) => {
+    const file = sq.charCodeAt(0) - 'a'.charCodeAt(0) // 0-7
+    const rank = parseInt(sq[1]) - 1 // 0-7
+    return {
+      x: file * SQUARE_SIZE + SQUARE_SIZE / 2,
+      y: (7 - rank) * SQUARE_SIZE + SQUARE_SIZE / 2
+    }
+  }
+  
+  const from = toPixel(correct.from)
+  const to = toPixel(correct.to)
+  
+  const dx = to.x - from.x
+  const dy = to.y - from.y
+  const len = Math.sqrt(dx * dx + dy * dy)
+  if (len === 0) return null
+  
+  // Chess.com arrow proportions (per 100px square, scaled by SQUARE_SIZE)
+  const scale = SQUARE_SIZE / 100
+  const bodyWidth = 15 * scale       // width of rectangular shaft
+  const headWidth = 55 * scale       // full width of triangular arrowhead
+  const headLength = 45 * scale      // length of arrowhead from base to tip
+  const startOffset = 20 * scale     // offset from source square center
+  
+  // Unit direction vector (from → to)
+  const dirX = dx / len
+  const dirY = dy / len
+  // Perpendicular vector (rotated 90° CCW)
+  const perpX = -dirY
+  const perpY = dirX
+  
+  // 7-point polygon: rectangular body seamlessly connected to wide triangular head
+  // Points go clockwise: start-left → neck-left → head-left → tip → head-right → neck-right → start-right
+  const neckDist = len - headLength  // distance from source to where head begins
+  
+  const points = [
+    // Start-left (body begins offset from source center)
+    { x: from.x + dirX * startOffset + perpX * bodyWidth / 2,
+      y: from.y + dirY * startOffset + perpY * bodyWidth / 2 },
+    // Neck-left (body meets arrowhead)
+    { x: from.x + dirX * neckDist + perpX * bodyWidth / 2,
+      y: from.y + dirY * neckDist + perpY * bodyWidth / 2 },
+    // Head-left (arrowhead widens)
+    { x: from.x + dirX * neckDist + perpX * headWidth / 2,
+      y: from.y + dirY * neckDist + perpY * headWidth / 2 },
+    // Tip (exactly at target square center)
+    { x: to.x, y: to.y },
+    // Head-right (arrowhead widens, other side)
+    { x: from.x + dirX * neckDist - perpX * headWidth / 2,
+      y: from.y + dirY * neckDist - perpY * headWidth / 2 },
+    // Neck-right (body meets arrowhead, other side)
+    { x: from.x + dirX * neckDist - perpX * bodyWidth / 2,
+      y: from.y + dirY * neckDist - perpY * bodyWidth / 2 },
+    // Start-right (body begins offset from source center, other side)
+    { x: from.x + dirX * startOffset - perpX * bodyWidth / 2,
+      y: from.y + dirY * startOffset - perpY * bodyWidth / 2 },
+  ]
+  
+  return {
+    polygon: points.map(p => `${p.x},${p.y}`).join(' ')
+  }
+})
 
 // Coach message based on state
 const coachMessage = computed(() => {
@@ -557,6 +632,9 @@ const loadQuestion = (index) => {
   lastMove.value = null
   // Clear checkmate highlight when loading new question
   checkmateHighlight.value = null
+  // Reset hint state
+  hintHighlightSquare.value = null
+  showMoveArrow.value = false
   // Reset continuation state
   continuationActive.value = false
   continuationData.value = null
@@ -589,6 +667,9 @@ const isWrongMove = (square) => {
   if (questionState.value !== 'wrong') return false
   return lastMove.value.from === square || lastMove.value.to === square
 }
+
+// Check if square has the hint highlight (blue overlay on piece to move)
+const isHintHighlight = (square) => hintHighlightSquare.value === square
 
 // ============================================
 // MOVE HANDLING
@@ -905,6 +986,10 @@ const tryMove = (from, to) => {
     return false // Illegal move - don't allow it
   }
   
+  // Clear hint visuals when user makes any move
+  hintHighlightSquare.value = null
+  showMoveArrow.value = false
+  
   // Check if this is the correct move (use active move data for continuation support)
   const correct = activeMoveData.value.correctMove
   const hasContinuation = !continuationActive.value && currentQuestion.value.continuation
@@ -1116,6 +1201,13 @@ const handleHint = () => {
   if (questionState.value === 'solution') return
   streak.value = 0 // Reset streak on hint
   questionState.value = 'hint'
+  // Highlight the piece that needs to move with blue overlay
+  hintHighlightSquare.value = activeMoveData.value.correctMove.from
+  showMoveArrow.value = false // Clear arrow if re-clicking hint
+}
+
+const handleShowMoveArrow = () => {
+  showMoveArrow.value = true
 }
 
 const showSolution = () => {
@@ -1178,6 +1270,10 @@ const showSolution = () => {
 }
 
 const handleRetry = () => {
+  // Clear hint visuals on retry
+  hintHighlightSquare.value = null
+  showMoveArrow.value = false
+  
   if (continuationActive.value) {
     // Retry from the continuation position: re-parse original FEN,
     // replay the first correct move, then replay the opponent move
@@ -1384,6 +1480,12 @@ onUnmounted(() => {
                 </svg>
               </div>
 
+              <!-- Hint Highlight Overlay (blue, shows which piece to move) -->
+              <div 
+                v-if="isHintHighlight(square)" 
+                class="hint-highlight-overlay"
+              ></div>
+
               <!-- Piece -->
               <img 
                 v-if="getPieceOnSquare(square) && !isPieceDragged(square)" 
@@ -1400,6 +1502,14 @@ onUnmounted(() => {
               <!-- Rank label (left column) -->
               <span v-if="square[0] === 'a'" class="coord rank-coord">{{ square[1] }}</span>
             </div>
+
+            <!-- Hint Move Arrow (SVG overlay, Chess.com style: single filled polygon with body + wide head) -->
+            <svg v-if="showMoveArrow && moveArrowData" class="board-arrow-overlay" viewBox="0 0 680 680">
+              <polygon
+                :points="moveArrowData.polygon"
+                fill="#F7A501" opacity="0.8"
+              />
+            </svg>
           </div>
           
         </div>
@@ -1535,7 +1645,15 @@ onUnmounted(() => {
                 </CcButton>
               </template>
               <template v-else>
-                <CcButton variant="secondary" size="large" :icon="{ name: icons.hint }" @click="handleHint">Hint</CcButton>
+                <CcButton 
+                  variant="secondary" 
+                  size="large" 
+                  :icon="{ name: questionState === 'hint' ? 'circle-fill-question' : icons.hint }" 
+                  :disabled="showMoveArrow"
+                  @click="questionState === 'hint' ? handleShowMoveArrow() : handleHint()"
+                >
+                  {{ questionState === 'hint' ? 'Move' : 'Hint' }}
+                </CcButton>
               </template>
             </template>
           </div>
@@ -1592,6 +1710,7 @@ body {
 }
 
 .chessboard {
+  position: relative;
   width: 68rem;
   height: 68rem;
   display: grid;
@@ -1633,6 +1752,25 @@ body {
   inset: 0;
   background: rgba(255, 99, 82, 0.5); /* red-200 at 50% */
   z-index: 1;
+  pointer-events: none;
+}
+
+/* Hint highlight - blue overlay on piece that needs to move */
+.hint-highlight-overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 159, 217, 0.5); /* blue-200 (#009FD9) at 50% */
+  z-index: 1;
+  pointer-events: none;
+}
+
+/* Hint move arrow - SVG overlay on the board */
+.board-arrow-overlay {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 5;
   pointer-events: none;
 }
 

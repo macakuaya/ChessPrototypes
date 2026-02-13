@@ -145,6 +145,10 @@ const moveState = ref('awaiting') // 'awaiting', 'wrong', 'hint', 'correct', 'co
 const streak = ref(0)
 const selectedSquare = ref(null)
 const lastMove = ref(null) // { from, to }
+
+// Hint state (two-step: first highlight piece, then show arrow)
+const hintHighlightSquare = ref(null)  // square to highlight with blue overlay (piece to move)
+const showMoveArrow = ref(false)       // whether the hint arrow is visible
 const checkpointPieces = ref([]) // Saved board state for retry after wrong move
 const lives = ref(puzzle.results.totalLives) // Hearts / lives remaining
 const timerSeconds = ref(0) // Puzzle timer in seconds
@@ -216,6 +220,76 @@ const actualProgress = computed(() => {
 const displayedProgress = ref(0)
 const displayedStreak = ref(0)
 
+// Arrow data for hint move arrow (Chess.com style: single filled polygon with rectangular body + wide triangular head)
+// Proportions from Chess.com's UniversalBoardDrawer: lineWidth=15, arrowheadWidth=55, arrowheadHeight=45, startOffset=20 per 100px square
+const moveArrowData = computed(() => {
+  if (!showMoveArrow.value) return null
+  const expected = currentExpectedMove.value
+  if (!expected) return null
+  
+  const toPixel = (sq) => {
+    const file = sq.charCodeAt(0) - 'a'.charCodeAt(0) // 0-7
+    const rank = parseInt(sq[1]) - 1 // 0-7
+    return {
+      x: file * SQUARE_SIZE + SQUARE_SIZE / 2,
+      y: (7 - rank) * SQUARE_SIZE + SQUARE_SIZE / 2
+    }
+  }
+  
+  const from = toPixel(expected.from)
+  const to = toPixel(expected.to)
+  
+  const dx = to.x - from.x
+  const dy = to.y - from.y
+  const len = Math.sqrt(dx * dx + dy * dy)
+  if (len === 0) return null
+  
+  // Chess.com arrow proportions (per 100px square, scaled by SQUARE_SIZE)
+  const scale = SQUARE_SIZE / 100
+  const bodyWidth = 15 * scale       // width of rectangular shaft
+  const headWidth = 55 * scale       // full width of triangular arrowhead
+  const headLength = 45 * scale      // length of arrowhead from base to tip
+  const startOffset = 20 * scale     // offset from source square center
+  
+  // Unit direction vector (from → to)
+  const dirX = dx / len
+  const dirY = dy / len
+  // Perpendicular vector (rotated 90° CCW)
+  const perpX = -dirY
+  const perpY = dirX
+  
+  // 7-point polygon: rectangular body seamlessly connected to wide triangular head
+  // Points go clockwise: start-left → neck-left → head-left → tip → head-right → neck-right → start-right
+  const neckDist = len - headLength  // distance from source to where head begins
+  
+  const points = [
+    // Start-left (body begins offset from source center)
+    { x: from.x + dirX * startOffset + perpX * bodyWidth / 2,
+      y: from.y + dirY * startOffset + perpY * bodyWidth / 2 },
+    // Neck-left (body meets arrowhead)
+    { x: from.x + dirX * neckDist + perpX * bodyWidth / 2,
+      y: from.y + dirY * neckDist + perpY * bodyWidth / 2 },
+    // Head-left (arrowhead widens)
+    { x: from.x + dirX * neckDist + perpX * headWidth / 2,
+      y: from.y + dirY * neckDist + perpY * headWidth / 2 },
+    // Tip (exactly at target square center)
+    { x: to.x, y: to.y },
+    // Head-right (arrowhead widens, other side)
+    { x: from.x + dirX * neckDist - perpX * headWidth / 2,
+      y: from.y + dirY * neckDist - perpY * headWidth / 2 },
+    // Neck-right (body meets arrowhead, other side)
+    { x: from.x + dirX * neckDist - perpX * bodyWidth / 2,
+      y: from.y + dirY * neckDist - perpY * bodyWidth / 2 },
+    // Start-right (body begins offset from source center, other side)
+    { x: from.x + dirX * startOffset - perpX * bodyWidth / 2,
+      y: from.y + dirY * startOffset - perpY * bodyWidth / 2 },
+  ]
+  
+  const polygon = points.map(p => `${p.x},${p.y}`).join(' ')
+  
+  return { polygon }
+})
+
 // Coach header text (overrides state-based header)
 const coachHeaderText = computed(() => {
   if (puzzlePhase.value === 'intro') {
@@ -255,7 +329,7 @@ const coachMessage = computed(() => {
 
 // Coach bubble state based on puzzle state
 const coachState = computed(() => {
-  if (puzzlePhase.value === 'intro') return 'white-to-move'
+  if (puzzlePhase.value === 'intro') return 'default'
   if (puzzlePhase.value === 'solved') return 'correct'
   switch (moveState.value) {
     case 'wrong': return 'incorrect'
@@ -372,6 +446,9 @@ const getSkillHighlightStyle = computed(() => {
   }
 })
 
+// Check if square has hint highlight (blue overlay on piece to move)
+const hasHintHighlight = (square) => hintHighlightSquare.value === square
+
 // Check if square has skill highlight
 const hasSkillHighlight = (square) => skillHighlight.value === square
 
@@ -446,6 +523,8 @@ const restoreCheckpoint = () => {
   selectedSquare.value = null
   lastMove.value = null
   checkmateHighlight.value = null
+  hintHighlightSquare.value = null
+  showMoveArrow.value = false
   moveState.value = 'awaiting'
 }
 
@@ -459,6 +538,8 @@ const loadPuzzle = () => {
   selectedSquare.value = null
   lastMove.value = null
   checkmateHighlight.value = null
+  hintHighlightSquare.value = null
+  showMoveArrow.value = false
 }
 
 // Reset the puzzle back to the intro screen
@@ -828,6 +909,10 @@ const tryMove = (from, to) => {
     return false // Illegal move - don't allow it
   }
   
+  // Clear hint visuals when user makes any move
+  hintHighlightSquare.value = null
+  showMoveArrow.value = false
+  
   // Check if this is the correct move
   const expected = currentExpectedMove.value
   if (from === expected.from && to === expected.to) {
@@ -979,6 +1064,16 @@ const handleHint = () => {
   if (moveState.value === 'correct' || moveState.value === 'computer-moving') return
   streak.value = 0 // Reset streak on hint
   moveState.value = 'hint'
+  // Highlight the piece that needs to move with blue overlay
+  const expected = currentExpectedMove.value
+  if (expected) {
+    hintHighlightSquare.value = expected.from
+  }
+  showMoveArrow.value = false // Clear arrow if re-clicking hint
+}
+
+const handleShowMoveArrow = () => {
+  showMoveArrow.value = true
 }
 
 const showSolution = () => {
@@ -1009,7 +1104,7 @@ const handleRetry = () => {
 }
 
 const openVideo = () => {
-  window.open('https://www.youtube.com/watch?v=dQw4w9WgXcQ', '_blank')
+  // No-op for now
 }
 
 const startPuzzle = () => {
@@ -1063,6 +1158,12 @@ onUnmounted(() => {
               :data-square="square"
               @click="handleSquareClick(square)"
             >
+              <!-- Hint Highlight Overlay (blue, shows which piece to move) -->
+              <div 
+                v-if="hasHintHighlight(square)" 
+                class="hint-highlight-overlay"
+              ></div>
+
               <!-- Skill Highlight Overlay -->
               <div 
                 v-if="hasSkillHighlight(square)" 
@@ -1145,6 +1246,14 @@ onUnmounted(() => {
               <!-- Rank label (left column) -->
               <span v-if="square[0] === 'a'" class="coord rank-coord">{{ square[1] }}</span>
             </div>
+
+            <!-- Hint Move Arrow (SVG overlay, Chess.com style: single filled polygon with body + wide head) -->
+            <svg v-if="showMoveArrow && moveArrowData" class="board-arrow-overlay" viewBox="0 0 680 680">
+              <polygon
+                :points="moveArrowData.polygon"
+                fill="#F7A501" opacity="0.8"
+              />
+            </svg>
           </div>
           
         </div>
@@ -1284,10 +1393,18 @@ onUnmounted(() => {
             <template v-else-if="moveState === 'correct' || moveState === 'computer-moving'">
               <!-- Waiting for animation / computer response -->
             </template>
-            <!-- Awaiting / hint: Video + Hint -->
+            <!-- Awaiting / hint: Video + Hint/Move -->
             <template v-else>
               <CcButton variant="secondary" size="large" :icon="{ name: icons.video }" @click="openVideo">Video</CcButton>
-              <CcButton variant="secondary" size="large" :icon="{ name: icons.hint }" @click="handleHint">Hint</CcButton>
+              <CcButton 
+                variant="secondary" 
+                size="large" 
+                :icon="{ name: moveState === 'hint' ? 'circle-fill-question' : icons.hint }" 
+                :disabled="showMoveArrow"
+                @click="moveState === 'hint' ? handleShowMoveArrow() : handleHint()"
+              >
+                {{ moveState === 'hint' ? 'Move' : 'Hint' }}
+              </CcButton>
             </template>
           </div>
           <div class="toolbar">
@@ -1339,6 +1456,7 @@ body {
 }
 
 .chessboard {
+  position: relative;
   width: 68rem;
   height: 68rem;
   display: grid;
@@ -1380,6 +1498,25 @@ body {
   inset: 0;
   background: rgba(255, 99, 82, 0.5); /* red-200 at 50% */
   z-index: 1;
+  pointer-events: none;
+}
+
+/* Hint highlight overlay - blue-200 (#009FD9) at 50% opacity */
+.hint-highlight-overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 159, 217, 0.5); /* blue-200 (#009FD9) at 50% */
+  z-index: 1;
+  pointer-events: none;
+}
+
+/* Hint move arrow - SVG overlay on the board */
+.board-arrow-overlay {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 5;
   pointer-events: none;
 }
 
@@ -1492,7 +1629,7 @@ body {
 
 .panel-content {
   flex: 1;
-  padding: 2.4rem;
+  padding: 1.6rem 2.4rem 2.4rem;
   display: flex;
   flex-direction: column;
   gap: 1.6rem;
