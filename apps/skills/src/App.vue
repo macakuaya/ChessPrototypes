@@ -2072,6 +2072,7 @@ button.cc-button-component.cc-button-secondary {
   padding: 12px;
   display: flex;
   align-items: flex-end;
+  min-height: 128px;
 }
 
 .coach-bubble {
