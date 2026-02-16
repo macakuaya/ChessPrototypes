@@ -221,9 +221,7 @@ const coachBubbleContent = computed(() => {
 
 // Watch for celebrations that should hide the coach bubble
 watch(showBoardCelebration, (newVal) => {
-  if (newVal && 
-      (boardCelebrationData.value.title === 'New Skills Unlocked!' ||
-       boardCelebrationData.value.title === 'You Mastered a Skill!')) {
+  if (newVal && boardCelebrationData.value.title === 'New Skills Unlocked!') {
     showCoachBubble.value = false
   }
   // When celebration ends and we're showing FTUE or encouraging message, hide bubble
@@ -244,19 +242,8 @@ function onCoachBubbleLeave() {
     return
   }
   
-  // "You Mastered a Skill!" - show random encouraging message
-  if (showBoardCelebration.value && 
-      boardCelebrationData.value.title === 'You Mastered a Skill!' &&
-      coachBubbleMode.value === 'original') {
-    currentEncouragingMessage.value = getRandomEncouragingMessage()
-    coachBubbleMode.value = 'encouraging'
-    showCoachBubble.value = true
-  }
-  // "New Skills Unlocked!" - keep the same bubble (do nothing, it's already showing)
-  // No action needed - the bubble persists from the previous celebration
-  
   // If bubble just faded out with FTUE or encouraging content (after Continue), restore original
-  else if ((coachBubbleMode.value === 'ftue' || coachBubbleMode.value === 'encouraging') && !showBoardCelebration.value) {
+  if ((coachBubbleMode.value === 'ftue' || coachBubbleMode.value === 'encouraging') && !showBoardCelebration.value) {
     coachBubbleMode.value = 'original'
     showCoachBubble.value = true
   }
@@ -1345,6 +1332,11 @@ function onCounterComplete() {
     }
     showBoardCelebration.value = true
     showContinueButton.value = true
+    
+    // Show encouraging coach bubble alongside the mastery celebration
+    currentEncouragingMessage.value = getRandomEncouragingMessage()
+    coachBubbleMode.value = 'encouraging'
+    showCoachBubble.value = true
   }
   // All Skills Mastered celebration (queen sacrifice completes ALL skills)
   else if (selectedPrototype.value === 'all-skills-mastered' && currentSkillType.value === 'queen' && queenSacrificeCount.value === 9) {
@@ -1357,6 +1349,11 @@ function onCounterComplete() {
     }
     showBoardCelebration.value = true
     showContinueButton.value = true
+    
+    // Show encouraging coach bubble alongside the mastery celebration
+    currentEncouragingMessage.value = getRandomEncouragingMessage()
+    coachBubbleMode.value = 'encouraging'
+    showCoachBubble.value = true
   }
   // End of FTUE celebration (checkmate completes the tutorial) - first show mastery
   else if (selectedPrototype.value === 'end-of-ftue' && currentSkillType.value === 'checkmate' && checkmateCount.value === 9) {
@@ -1369,6 +1366,11 @@ function onCounterComplete() {
     }
     showBoardCelebration.value = true
     showContinueButton.value = true
+    
+    // Show encouraging coach bubble alongside the mastery celebration
+    currentEncouragingMessage.value = getRandomEncouragingMessage()
+    coachBubbleMode.value = 'encouraging'
+    showCoachBubble.value = true
   }
   // FTUE first skill celebration
   else if (!hasShownFirstSkillCelebration.value && selectedPrototype.value === 'ftue') {
@@ -1830,18 +1832,6 @@ onUnmounted(() => {
           <!-- Normal tabs OR Continue button with fade transitions -->
           <Transition name="tabs-fade" mode="out-in">
             <div v-if="!showContinueButton" key="tabs" class="tabs-group">
-              <div class="tab-item">
-                <div class="tab-icon tab-icon-glyph">
-                  <CcIcon :name="glyphs.tabShow" :size="24" />
-                </div>
-                <span class="tab-label">Show</span>
-              </div>
-              <div class="tab-item">
-                <div class="tab-icon tab-icon-glyph">
-                  <CcIcon :name="glyphs.tabBest" :size="24" />
-                </div>
-                <span class="tab-label">Best</span>
-              </div>
               <div v-if="isCurrentMoveBad" class="tab-item">
                 <div class="tab-icon tab-icon-glyph">
                   <CcIcon :name="glyphs.tabRetry" :size="24" />
@@ -1854,9 +1844,22 @@ onUnmounted(() => {
                 </div>
                 <span class="tab-label">Skills</span>
               </div>
+              <div class="tab-item">
+                <div class="tab-icon tab-icon-glyph">
+                  <CcIcon :name="glyphs.tabShow" :size="24" />
+                </div>
+                <span class="tab-label">Show</span>
+              </div>
+              <div class="tab-item">
+                <div class="tab-icon tab-icon-glyph">
+                  <CcIcon :name="glyphs.tabBest" :size="24" />
+                </div>
+                <span class="tab-label">Best</span>
+              </div>
               <CcButton variant="primary" size="x-large" class="tab-cta-ds" @click="playNextMoves">Next</CcButton>
             </div>
             <div v-else key="continue" class="continue-group">
+              <cc-button v-if="selectedPrototype !== 'ftue'" variant="secondary" size="large">Share</cc-button>
               <cc-button variant="primary" size="large" @click="onContinueClick">Continue</cc-button>
             </div>
           </Transition>
