@@ -18,11 +18,24 @@ import { Vue3Lottie } from 'vue3-lottie'
 const activePly = ref(0)
 const showSkillsSheet = ref(false)
 const showPrototypeMenu = ref(false)
-const selectedPrototype = ref(localStorage.getItem('selectedPrototype') || 'skill-point-earned')
+const validPrototypes = ['skill-point-earned', 'ftue', 'end-of-ftue', 'mastered-skill', 'two-mastered-skills', 'all-skills-mastered']
+const urlPrototype = new URLSearchParams(window.location.search).get('prototype')
+const initialPrototype = (urlPrototype && validPrototypes.includes(urlPrototype)) ? urlPrototype : (localStorage.getItem('selectedPrototype') || 'skill-point-earned')
+const selectedPrototype = ref(initialPrototype)
 
-// Persist selected prototype to localStorage
+// Set URL on initial load
+{
+  const url = new URL(window.location.href)
+  url.searchParams.set('prototype', initialPrototype)
+  window.history.replaceState({}, '', url)
+}
+
+// Persist selected prototype to localStorage and update URL
 watch(selectedPrototype, (newVal) => {
   localStorage.setItem('selectedPrototype', newVal)
+  const url = new URL(window.location.href)
+  url.searchParams.set('prototype', newVal)
+  window.history.replaceState({}, '', url)
 })
 
 // Skill earned animation state
