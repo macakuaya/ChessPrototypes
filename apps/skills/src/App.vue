@@ -209,8 +209,7 @@ const coachBubbleContent = computed(() => {
 // Watch for celebrations that should hide the coach bubble
 watch(showBoardCelebration, (newVal) => {
   if (newVal && 
-      (boardCelebrationData.value.title === 'You Earned a Skill Point' ||
-       boardCelebrationData.value.title === 'New Skills Unlocked!' ||
+      (boardCelebrationData.value.title === 'New Skills Unlocked!' ||
        boardCelebrationData.value.title === 'You Mastered a Skill!')) {
     showCoachBubble.value = false
   }
@@ -226,22 +225,14 @@ watch(showBoardCelebration, (newVal) => {
 let coachFtueAudio = null
 
 function onCoachBubbleLeave() {
-  // "You Earned a Skill Point" (FTUE only) - show FTUE educational message
-  if (showBoardCelebration.value && 
-      boardCelebrationData.value.title === 'You Earned a Skill Point' &&
-      coachBubbleMode.value === 'original') {
-    coachBubbleMode.value = 'ftue'
-    showCoachBubble.value = true
-    
-    // Play coach voice-over for FTUE message
-    if (!coachFtueAudio) {
-      coachFtueAudio = new Audio(`${import.meta.env.BASE_URL}sounds/coach-ftue-voice.mp3`)
-    }
-    coachFtueAudio.currentTime = 0
-    coachFtueAudio.play().catch(e => console.warn('Could not play FTUE audio:', e))
+  // Don't restore original bubble during skill animation - wait for celebration flow
+  // But allow FTUE/encouraging bubble transitions (from Continue click) to proceed
+  if (currentAnimatingPly.value !== null && !showBoardCelebration.value && coachBubbleMode.value === 'original') {
+    return
   }
+  
   // "You Mastered a Skill!" - show random encouraging message
-  else if (showBoardCelebration.value && 
+  if (showBoardCelebration.value && 
       boardCelebrationData.value.title === 'You Mastered a Skill!' &&
       coachBubbleMode.value === 'original') {
     currentEncouragingMessage.value = getRandomEncouragingMessage()
@@ -1186,6 +1177,9 @@ const currentSkillType = ref(null) // Track which skill type is animating
 
 // Trigger skill earned animation
 function triggerSkillEarned(square, ply, skillType = 'rook') {
+  // Immediately dismiss coach move commentary
+  showCoachBubble.value = false
+  
   // Set skill data based on type
   if (skillType === 'queen') {
     skillEarnedData.value = {
@@ -1377,6 +1371,16 @@ function onCounterComplete() {
     }
     showBoardCelebration.value = true
     showContinueButton.value = true
+    
+    // Show FTUE coach bubble with audio alongside the celebration
+    coachBubbleMode.value = 'ftue'
+    showCoachBubble.value = true
+    
+    if (!coachFtueAudio) {
+      coachFtueAudio = new Audio(`${import.meta.env.BASE_URL}sounds/coach-ftue-voice.mp3`)
+    }
+    coachFtueAudio.currentTime = 0
+    coachFtueAudio.play().catch(e => console.warn('Could not play FTUE audio:', e))
   } else {
     // For subsequent skills or non-FTUE prototypes, auto-close after a short delay
     closeSkillEarned()
@@ -1840,7 +1844,6 @@ onUnmounted(() => {
               <CcButton variant="primary" size="x-large" class="tab-cta-ds" @click="playNextMoves">Next</CcButton>
             </div>
             <div v-else key="continue" class="continue-group">
-              <cc-button variant="secondary" size="large">Share</cc-button>
               <cc-button variant="primary" size="large" @click="onContinueClick">Continue</cc-button>
             </div>
           </Transition>
