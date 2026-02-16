@@ -21,7 +21,7 @@ const bubbleRef = ref(null)
 
 // Default to classification-brilliant icon if no icon specified
 const iconName = computed(() => props.headerIcon || 'classification-brilliant')
-const avatarSrc = `${base}icons/misc/coach-avatar.png`
+const avatarSrc = `${base}icons/misc/coach-avatar.svg`
 const tipSrc = `${base}icons/misc/bubble-tip.svg`
 
 // Preserve wrapper height when bubble hides to prevent layout shift
