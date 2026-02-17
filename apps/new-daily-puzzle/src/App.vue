@@ -61,11 +61,6 @@ const ANIMATION_COLORS = {
     coin: '#26C2A3',       // Teal coin
     textColor: '#1a9a82',  // Darker teal for text
   },
-  checkmate: {
-    overlay: '#FA412D',    // --color-red-300 (bg-loss)
-    coin: '#FA412D',
-    textColor: '#E02828',  // --color-red-400 for text
-  },
 }
 
 // ============================================
@@ -147,7 +142,9 @@ const replayGoTo = (ply) => {
   const snapshot = replayPositions.value[clamped]
   pieces.value = JSON.parse(JSON.stringify(snapshot.pieces))
   lastMove.value = snapshot.lastMove
-  checkmateHighlight.value = null
+  checkmateEffectSquares.value = {}
+  checkmateEffectIcons.value = {}
+  checkmateEffectLabels.value = {}
 }
 
 const replayBack = () => {
@@ -172,7 +169,22 @@ const replayForward = () => {
     replayPly.value = -1
     const lastPuzzleMove = puzzle.moves[puzzle.moves.length - 1]
     if (lastPuzzleMove && lastPuzzleMove.isCheckmate && lastPuzzleMove.kingSquare) {
-      checkmateHighlight.value = lastPuzzleMove.kingSquare
+      // Re-show the checkmate effects (without animation — just the final state)
+      const effects = {}
+      const icons = {}
+      const labels = {}
+      effects[lastPuzzleMove.kingSquare] = 'checkmateblack'
+      icons[lastPuzzleMove.kingSquare] = checkmateBlackIconSvg
+      labels[lastPuzzleMove.kingSquare] = 'Checkmate'
+      const winnerKing = pieces.value.find(p => p.type === 'wk')
+      if (winnerKing) {
+        effects[winnerKing.square] = 'winner'
+        icons[winnerKing.square] = winnerIconSvg
+        labels[winnerKing.square] = 'Winner'
+      }
+      checkmateEffectSquares.value = effects
+      checkmateEffectIcons.value = icons
+      checkmateEffectLabels.value = labels
     }
     showCoachBubble.value = true
   }
@@ -219,8 +231,17 @@ const boardRef = ref(null)
 // Animation state
 const movingPiece = ref(null)  // { type, fromSquare, toSquare, startPos, endPos }
 const brilliantHighlight = ref(null)  // Square to highlight with brilliant animation
-const checkmateHighlight = ref(null)  // Square for checkmate animation (on checkmated king)
-const checkmateKingColor = ref('black')  // 'black' or 'white' - color of the checkmated king icon
+
+// Animated checkmate effect state (Chess.com chessboard style)
+// Maps square -> effect type class name (e.g. 'checkmateblack', 'winner')
+const checkmateEffectSquares = ref({})
+const checkmateEffectIcons = ref({})    // Maps square -> SVG innerHTML for the icon
+const checkmateEffectLabels = ref({})   // Maps square -> text label
+
+// Animated effect SVG icons (from Chess.com chessboard library)
+const checkmateBlackIconSvg = `<svg xmlns="http://www.w3.org/2000/svg" class="icon slide" width="70%" height="70%" viewBox="0 0 18 19"><g id="mate"><path d="m 9.9742023,6.6728298 2.42e-5,-2.42e-5 -0.00213,-0.00204 C 9.7700909,6.4784115 9.5898002,6.3078138 9.4249699,6.1860933 9.2615451,6.0654149 9.0947034,5.9782259 8.9192108,5.9782259 c -0.25168,0 -0.4344667,0.1056058 -0.549814,0.2695152 -0.1111793,0.1579967 -0.1529321,0.3598302 -0.1529321,0.5495475 0,0.3631985 0.1493457,0.7186669 0.3948949,1.0255973 l 0.036373,0.045485 h 0.058231 1.8222934 0.121163 V 7.7472074 c 0,-0.062738 0.0045,-0.1263489 0.0094,-0.192189 l 6.79e-4,-0.00921 c 0.0046,-0.061284 0.0093,-0.1257673 0.0093,-0.1863246 V 7.30329 l -0.04289,-0.0363 C 10.37581,7.055366 10.165155,6.8638071 9.9742023,6.6728298 Z M 8.7059637,10.223781 h -0.058231 l -0.036373,0.04546 c -0.2455492,0.306954 -0.3948949,0.662399 -0.3948949,1.025621 0,0.189718 0.041753,0.391551 0.1529321,0.549524 0.1153473,0.163909 0.298134,0.269539 0.549814,0.269539 0.1754926,0 0.3423343,-0.08719 0.5057591,-0.207867 0.1648303,-0.121721 0.345121,-0.292319 0.5471241,-0.484677 l 2.43e-5,2.4e-5 0.00208,-0.0021 c 0.1909566,-0.19096 0.4016116,-0.382519 0.6517156,-0.594143 l 0.04289,-0.0363 v -0.0562 c 0,-0.06056 -0.0048,-0.125041 -0.0093,-0.186349 l -6.79e-4,-0.0092 c -0.0049,-0.06584 -0.0094,-0.12945 -0.0094,-0.192188 V 10.223781 H 10.528257 Z M 14.663966,4.902295 h 0.208401 v 0.2084006 9.93e-5 l 0.0065,7.8706591 v 9.7e-5 0.208304 H 14.670436 14.55412 c -0.512351,0 -0.925154,-0.0027 -1.261842,-0.179928 l -0.0024,-0.0013 -0.0024,-0.0011 c -0.294717,-0.138683 -0.506995,-0.38084 -0.634046,-0.780096 l -0.04771,-0.149976 -0.132794,0.0845 c -0.389055,0.247585 -0.730662,0.573344 -1.056979,0.884515 -0.04173,0.03979 -0.08319,0.07931 -0.124459,0.118425 l -2.4e-5,-2.4e-5 -0.0023,0.0023 -0.02246,0.02249 c -0.696009,0.69613 -1.3763643,1.376606 -2.4702007,1.376606 -1.5837231,0 -2.7092072,-1.111695 -2.7092072,-2.631662 0,-0.757682 0.1705492,-1.383417 0.3033682,-1.762875 L 6.435997,10.042013 6.3016271,10.013224 5.7588163,9.8969076 5.6122817,9.8655021 v 0.1498789 0.770597 H 5.4038811 4.2794826 4.0904681 V 9.9378365 9.8166734 H 3.969305 3.3101776 3.1211632 V 9.6082728 8.4838791 8.2754786 H 3.3101776 3.969305 4.0904681 V 8.1543154 7.3061736 H 4.2794826 5.4038811 5.6122817 V 8.076771 8.2255594 L 5.7579924,8.195414 6.3201893,8.0790974 6.4618774,8.0498001 6.4081295,7.9154545 C 6.2579357,7.5399458 6.0872411,6.9154711 6.0872411,6.1575473 c 0,-1.5199695 1.1254841,-2.6316648 2.7092072,-2.6316648 0.9968332,0 1.6502897,0.5651455 2.2851117,1.1922446 h -0.0173 l 0.220735,0.2091227 c 0.04129,0.039104 0.08276,0.078642 0.124459,0.1184175 0.326317,0.3111784 0.667924,0.6369448 1.057003,0.8845295 l 0.13277,0.084499 0.04774,-0.1499757 C 12.773991,5.465466 12.986269,5.2233118 13.280986,5.0846237 l 0.0024,-0.00115 0.0024,-0.00126 C 13.622521,4.9050091 14.035323,4.902295 14.547649,4.902295 Z" fill="black" stroke="black" style="fill:#000000;fill-opacity:1;stroke:#000000;stroke-width:0.242326;stroke-opacity:1" /></g></svg>`
+
+const winnerIconSvg = `<svg xmlns="http://www.w3.org/2000/svg" class="icon slide" width="70%" height="70%" viewBox="0 0 18 19"><g id="winner"><path d="m 24.4334,39.6517 c 15.9034,0 22.8584,-4.7017 22.8584,-4.7017 l 0.975,-23.6167 c 0,-2.16663 -1.495,-2.79497 -3.25,-1.4083 L 34.1834,17.53 26.6868,2.66667 C 26.0151,0.911667 25.1484,0.5 24.5201,0.5 23.8918,0.5 22.9384,0.955 22.3534,2.66667 L 14.6834,17.53 3.85008,9.925 C 2.09508,8.53833 0.513416,9.16667 0.600083,11.3333 L 1.57508,34.95 c 0,0 6.955,4.55 22.85832,4.7017 z" fill="white" style="fill:#ffffff;fill-opacity:1" transform="matrix(0.25173118,0,0,0.25173118,2.8497971,2.8741344)" /></g></svg>`
 
 // Refs for animation target positioning
 const progressBarRef = ref(null)      // Reference to progress bar element
@@ -461,17 +482,8 @@ const moveArrowData = computed(() => {
 // Check if square has brilliant highlight
 const hasBrilliantHighlight = (square) => brilliantHighlight.value === square
 
-// Check if square has checkmate highlight
-const hasCheckmateHighlight = (square) => checkmateHighlight.value === square
-
-// Computed: Checkmate king icon name (same as queen: piece-fill-king)
-const checkmateKingIcon = computed(() => 'piece-fill-king')
-
-// Computed: Checkmate icon color (matches the checkmated king's color)
-// Use hex values since CcIcon doesn't interpret 'black'/'white' strings properly
-const checkmateIconColor = computed(() => {
-  return checkmateKingColor.value === 'black' ? '#262421' : '#ffffff'
-})
+// Square size in pixels for animated effect (board is 68rem = 680px, 680/8 = 85px)
+const squareSizePx = 85
 
 // Generate all squares
 const squares = computed(() => {
@@ -528,10 +540,14 @@ const restoreCheckpoint = () => {
   pieces.value = JSON.parse(JSON.stringify(checkpointPieces.value))
   selectedSquare.value = null
   lastMove.value = null
-  checkmateHighlight.value = null
+  checkmateEffectSquares.value = {}
+  checkmateEffectIcons.value = {}
+  checkmateEffectLabels.value = {}
   hintHighlightSquare.value = null
   showMoveArrow.value = false
   moveState.value = 'awaiting'
+  classificationSquare.value = null
+  classificationType.value = null
 }
 
 // Load initial puzzle position
@@ -543,13 +559,17 @@ const loadPuzzle = () => {
   moveState.value = 'awaiting'
   selectedSquare.value = null
   lastMove.value = null
-  checkmateHighlight.value = null
+  checkmateEffectSquares.value = {}
+  checkmateEffectIcons.value = {}
+  checkmateEffectLabels.value = {}
   hintHighlightSquare.value = null
   showMoveArrow.value = false
   replayPly.value = -1
   replayPositions.value = []
   lastCorrectMessage.value = ''
   lastCorrectNotation.value = ''
+  classificationSquare.value = null
+  classificationType.value = null
 }
 
 // Reset the puzzle back to the intro screen
@@ -589,6 +609,19 @@ const isWrongMove = (square) => {
   if (moveState.value !== 'wrong') return false
   return lastMove.value.from === square || lastMove.value.to === square
 }
+
+// Move classification effect on destination square (Chess.com board style)
+const classificationSquare = ref(null)  // square to show classification on
+const classificationType = ref(null)    // 'correct' or 'miss'
+
+// Inline SVGs from Chess.com's chessboard library (viewBox 0 0 18 19)
+const correctEffectSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="100%" height="100%" viewBox="0 0 18 19"><g id="correct"><g><path class="icon-shadow" opacity="0.3" d="M9,.5a9,9,0,1,0,9,9A9,9,0,0,0,9,.5Z"></path><path class="icon-background" fill="#81b64c" d="M9,0a9,9,0,1,0,9,9A9,9,0,0,0,9,0Z"></path></g><g><path class="icon-component-shadow" opacity="0.2" d="M15.11,6.81,9.45,12.47,7.79,14.13a.39.39,0,0,1-.28.11.39.39,0,0,1-.27-.11L2.89,9.78a.39.39,0,0,1-.11-.28.39.39,0,0,1,.11-.27L4.28,7.85a.34.34,0,0,1,.12-.09l.15,0a.37.37,0,0,1,.15,0,.38.38,0,0,1,.13.09l2.69,2.68,5.65-5.65a.38.38,0,0,1,.13-.09.37.37,0,0,1,.15,0,.4.4,0,0,1,.15,0,.34.34,0,0,1,.12.09l1.39,1.38a.41.41,0,0,1,.08.13.33.33,0,0,1,0,.15.4.4,0,0,1,0,.15A.5.5,0,0,1,15.11,6.81Z"></path><path class="icon-component" fill="#fff" d="M15.11,6.31,9.45,12,7.79,13.63a.39.39,0,0,1-.28.11.39.39,0,0,1-.27-.11L2.89,9.28A.39.39,0,0,1,2.78,9a.39.39,0,0,1,.11-.27L4.28,7.35a.34.34,0,0,1,.12-.09l.15,0a.37.37,0,0,1,.15,0,.38.38,0,0,1,.13.09L7.52,10l5.65-5.65a.38.38,0,0,1,.13-.09.37.37,0,0,1,.15,0,.4.4,0,0,1,.15,0,.34.34,0,0,1,.12.09l1.39,1.38a.41.41,0,0,1,.08.13.33.33,0,0,1,0,.15.4.4,0,0,1,0,.15A.5.5,0,0,1,15.11,6.31Z"></path></g></g></svg>`
+
+const missEffectSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="100%" height="100%" viewBox="0 0 18 19"><defs><style>.cls-1{fill:#f1f2f2;}.cls-2{fill:#FF7769;}.cls-3{opacity:.2;}.cls-4{opacity:.3;}</style></defs><g id="incorrect"><path class="cls-4" d="M9,.5C4.03,.5,0,4.53,0,9.5s4.03,9,9,9,9-4.03,9-9S13.97,.5,9,.5Z"/><path class="cls-2" d="M9,0C4.03,0,0,4.03,0,9s4.03,9,9,9,9-4.03,9-9S13.97,0,9,0Z"/><g class="cls-3"><path d="M13.99,12.51s.06,.08,.08,.13c.02,.05,.03,.1,.03,.15s-.01,.1-.03,.15c-.02,.05-.05,.09-.08,.13l-1.37,1.37s-.08,.06-.13,.08c-.05,.02-.1,.03-.15,.03s-.1-.01-.15-.03c-.05-.02-.09-.05-.13-.08l-3.06-3.06-3.06,3.06s-.08,.06-.13,.08c-.05,.02-.1,.03-.15,.03s-.1-.01-.15-.03c-.05-.02-.09-.05-.13-.08l-1.37-1.37c-.07-.07-.11-.17-.11-.28s.04-.2,.11-.28l3.06-3.06-3.06-3.06c-.07-.07-.11-.17-.11-.28s.04-.2,.11-.28l1.37-1.37c.07-.07,.17-.11,.28-.11s.2,.04,.28,.11l3.06,3.06,3.06-3.06c.07-.07,.17-.11,.28-.11s.2,.04,.28,.11l1.37,1.37s.06,.08,.08,.13c.02,.05,.03,.1,.03,.15s-.01,.1-.03,.15c-.02,.05-.05,.09-.08,.13l-3.06,3.06,3.06,3.06Z"/></g><path class="cls-1" d="M13.99,12.01s.06,.08,.08,.13c.02,.05,.03,.1,.03,.15s-.01,.1-.03,.15c-.02,.05-.05,.09-.08,.13l-1.37,1.37s-.08,.06-.13,.08c-.05,.02-.1,.03-.15,.03s-.1-.01-.15-.03c-.05-.02-.09-.05-.13-.08l-3.06-3.06-3.06,3.06s-.08,.06-.13,.08c-.05,.02-.1,.03-.15,.03s-.1-.01-.15-.03c-.05-.02-.09-.05-.13-.08l-1.37-1.37c-.07-.07-.11-.17-.11-.28s.04-.2,.11-.28l3.06-3.06-3.06-3.06c-.07-.07-.11-.17-.11-.28s.04-.2,.11-.28l1.37-1.37c.07-.07,.17-.11,.28-.11s.2,.04,.28,.11l3.06,3.06,3.06-3.06c.07-.07,.17-.11,.28-.11s.2,.04,.28,.11l1.37,1.37s.06,.08,.08,.13c.02,.05,.03,.1,.03,.15s-.01,.1-.03,.15c-.02,.05-.05,.09-.08,.13l-3.06,3.06,3.06,3.06Z"/></g></svg>`
+
+// Edge detection for tucking effect icons (same as Chess.com's chessboard library)
+const isEdgeTop = (square) => square.includes('8')
+const isEdgeRight = (square) => square.includes('h')
 
 // ============================================
 // MOVE HANDLING
@@ -745,17 +778,39 @@ const triggerBrilliantAnimation = (square) => {
   }, 1200)
 }
 
-// Trigger checkmate animation on the checkmated king's square
-// The coin stays in place until replaced by the next animation
-const triggerCheckmateAnimation = (kingSquare, isBlackKing, onComplete) => {
-  checkmateHighlight.value = kingSquare
-  checkmateKingColor.value = isBlackKing ? 'black' : 'white'
+// Trigger animated checkmate effect (Chess.com chessboard library style)
+// Shows effects on both the checkmated king (red/defeat) and the winning king (green/winner)
+const triggerCheckmateAnimation = (loserKingSquare, isBlackKing, onComplete) => {
+  // Find the winning king's square
+  const winnerKingType = isBlackKing ? 'wk' : 'bk'
+  const winnerKing = pieces.value.find(p => p.type === winnerKingType)
+  const winnerKingSquare = winnerKing ? winnerKing.square : null
   
-  // After animation completes (800ms), call onComplete for next animations
-  // Don't clear checkmateHighlight here - it gets cleared when next animation starts
+  // Set up effects on both squares
+  const effects = {}
+  const icons = {}
+  const labels = {}
+  
+  // Loser king gets the checkmate effect (red)
+  effects[loserKingSquare] = 'checkmateblack'
+  icons[loserKingSquare] = checkmateBlackIconSvg
+  labels[loserKingSquare] = 'Checkmate'
+  
+  // Winner king gets the winner effect (green crown)
+  if (winnerKingSquare) {
+    effects[winnerKingSquare] = 'winner'
+    icons[winnerKingSquare] = winnerIconSvg
+    labels[winnerKingSquare] = 'Winner'
+  }
+  
+  checkmateEffectSquares.value = effects
+  checkmateEffectIcons.value = icons
+  checkmateEffectLabels.value = labels
+  
+  // Total animation: first-step (0.3s) + delay (0.7s) + second-step (0.3s) = 1.3s
   setTimeout(() => {
     if (onComplete) nextTick(() => onComplete())
-  }, 800)
+  }, 1300)
 }
 
 // Schedule the next move after a correct player move
@@ -779,6 +834,8 @@ const scheduleNextMove = (afterDelay = 3800) => {
       moveState.value = 'computer-moving'
       
       setTimeout(() => {
+        classificationSquare.value = null
+        classificationType.value = null
         const isCapture = getPieceOnSquare(nextMove.to) !== undefined
         makeMove(nextMove.from, nextMove.to)
         lastMove.value = { from: nextMove.from, to: nextMove.to }
@@ -807,6 +864,8 @@ const scheduleNextMove = (afterDelay = 3800) => {
 const tryMove = (from, to) => {
   if (puzzlePhase.value !== 'playing') return false
   if (moveState.value === 'correct' || moveState.value === 'computer-moving') return false
+  classificationSquare.value = null
+  classificationType.value = null
   
   const movingPieceObj = getPieceOnSquare(from)
   if (!movingPieceObj || !movingPieceObj.type.startsWith('w')) return false
@@ -833,6 +892,8 @@ const tryMove = (from, to) => {
     streak.value++
     moveState.value = 'correct'
     lastMove.value = { from, to }
+    classificationSquare.value = to
+    classificationType.value = 'correct'
     
     // Play appropriate sound
     playPuzzleSound('correct')
@@ -870,6 +931,8 @@ const tryMove = (from, to) => {
     const isCapture = getPieceOnSquare(to) !== undefined
     makeMove(from, to)
     lastMove.value = { from, to, pieceType: wrongPiece?.type }
+    classificationSquare.value = to
+    classificationType.value = 'miss'
     
     // Play incorrect sound for wrong move
     playPuzzleSound('incorrect')
@@ -1128,26 +1191,20 @@ onUnmounted(() => {
                 <span class="brilliant-label-text">Brilliant!</span>
               </div>
 
-              <!-- Checkmate Highlight Overlay (red at 80% opacity) -->
+              <!-- Animated Checkmate Effect (Chess.com chessboard style) -->
               <div 
-                v-if="hasCheckmateHighlight(square)" 
-                class="checkmate-highlight-overlay"
-              ></div>
-              
-              <!-- Checkmate Icon (Rotated King - defeated) -->
-              <div 
-                v-if="hasCheckmateHighlight(square)" 
-                class="checkmate-icon-wrapper"
+                v-if="checkmateEffectSquares[square]"
+                class="animated-effect"
+                :class="[
+                  checkmateEffectSquares[square],
+                  { 'tuck-top': isEdgeTop(square), 'tuck-right': isEdgeRight(square) }
+                ]"
+                :style="{ '--square-size': squareSizePx + 'px', '--target-icon-size': '18.75%', '--target-opacity': '1' }"
               >
-                <CcIcon :name="checkmateKingIcon" :size="51" class="checkmate-king-icon" :style="{ color: checkmateIconColor, fill: checkmateIconColor }" />
-              </div>
-              
-              <!-- Checkmate Label Bubble (red, stays on board) -->
-              <div 
-                v-if="hasCheckmateHighlight(square)" 
-                class="checkmate-label-bubble"
-              >
-                <span class="checkmate-label-text">Checkmate</span>
+                <div class="ae-square" :class="checkmateEffectSquares[square]"></div>
+                <div class="ae-icon" v-html="checkmateEffectIcons[square]"></div>
+                <div class="ae-icon-background" :class="checkmateEffectSquares[square]"></div>
+                <div class="ae-text">{{ checkmateEffectLabels[square] }}</div>
               </div>
 
               <!-- Piece -->
@@ -1161,6 +1218,14 @@ onUnmounted(() => {
                 @mousedown="handleDragStart($event, square)"
                 @touchstart="handleDragStart($event, square)"
               />
+              <!-- Move Classification Effect (Chess.com board style) -->
+              <div 
+                v-if="classificationSquare === square && classificationType"
+                class="effect"
+                :class="{ 'tuck-top': isEdgeTop(square), 'tuck-right': isEdgeRight(square) }"
+                v-html="classificationType === 'correct' ? correctEffectSvg : missEffectSvg"
+              ></div>
+
               <!-- File label (bottom row) -->
               <span v-if="square[1] === '1'" class="coord file-coord">{{ square[0] }}</span>
               <!-- Rank label (left column) -->
@@ -1454,24 +1519,49 @@ body {
 .square.selected.light { background: #f6f669; }
 .square.selected.dark { background: #bbcb44; }
 
-/* Success move highlight - green-300 (#81B64C) at 50% opacity overlay */
+/* Correct move highlight - #acce59 at 50% (Chess.com puzzle classification) */
 .square.last-move::before {
   content: '';
   position: absolute;
   inset: 0;
-  background: rgba(129, 182, 76, 0.5); /* green-300 at 50% */
+  background: rgba(172, 206, 89, 0.5); /* #acce59 at 50% */
   z-index: 1;
   pointer-events: none;
 }
 
-/* Wrong move highlight - red-200 (#FF6352) at 50% opacity overlay */
+/* Incorrect move highlight - #c93430 at 50% (Chess.com puzzle classification) */
 .square.wrong-move::before {
   content: '';
   position: absolute;
   inset: 0;
-  background: rgba(255, 99, 82, 0.5); /* red-200 at 50% */
+  background: rgba(201, 52, 48, 0.5); /* #c93430 at 50% */
   z-index: 1;
   pointer-events: none;
+}
+
+/* Move Classification Effect - exact Chess.com chessboard style */
+/* Percentages converted from board-relative (12.5% = 1 square) to square-relative */
+.effect {
+  background-clip: content-box;
+  border-radius: 50%;
+  box-sizing: border-box;
+  height: 100%;
+  left: 44%;
+  padding: 30%;
+  pointer-events: none;
+  position: absolute;
+  top: -44%;
+  width: 100%;
+  z-index: 10;
+}
+.effect.tuck-right {
+  margin-left: -16%;
+}
+.effect.tuck-top {
+  margin-top: 16%;
+}
+.effect :deep(svg) {
+  overflow: visible;
 }
 
 /* Hint highlight overlay - blue-200 (#009FD9) at 50% opacity */
@@ -2007,170 +2097,211 @@ body {
 /* CHECKMATE ANIMATION (copy of brilliant but red, stays on board) */
 /* ============================================ */
 
-/* Checkmate Highlight Overlay (red at 80% opacity) */
-.checkmate-highlight-overlay {
+/* ========== ANIMATED CHECKMATE EFFECT (Chess.com chessboard style) ========== */
+/* Adapted from @chesscom/chessboard library - board-relative → square-relative */
+
+.animated-effect {
+  --first-step-duration: 0.3s;
+  --second-step-duration: 0.3s;
+  --delay: 0.7s;
+  --square-alpha: 0.8;
+  --icon-bg-scale: 1.0;
+  --y-position: calc(0% + var(--inset-y-factor));
+  --x-position: calc(100% + var(--inset-x-factor));
+  --text-x-position: var(--x-position);
+  --text-y-position: var(--y-position);
+  --text-line-height: calc(var(--line-height-ratio) * var(--square-size));
+  --icon-starting-y: 62.5%;
+  --text-translate-x: -50%;
+  --text-translate-y: -50%;
+  --icon-bg-translate-x: -50%;
+  --icon-bg-translate-y: -50%;
+  --icon-translate-x: -50%;
+  --icon-translate-y: -50%;
+  --text-transform-origin: center center;
+  --inset-x-factor: -5%;
+  --inset-y-factor: 5%;
+  --font-size-ratio: calc(18 / 82.5);
+  --line-height-ratio: calc(30 / 82.5);
+  --padding-ratio: calc(14 / 82.5);
+  background-clip: content-box;
+  box-sizing: border-box;
+  color: #000000;
+  height: 100%;
+  left: 0;
+  pointer-events: none;
+  position: absolute;
+  top: 0;
+  width: 100%;
+  z-index: 10;
+}
+
+/* Tuck adjustments for edge squares */
+.animated-effect.tuck-top {
+  --y-position: calc(0% + var(--target-icon-size));
+  --inset-y-factor: 0%;
+  --half-text-line-height: calc(var(--text-line-height) / 2);
+  --text-y-position: calc(calc(var(--y-position) - var(--target-icon-size)) + var(--half-text-line-height));
+}
+.animated-effect.tuck-right {
+  --x-position: calc(100% - var(--target-icon-size));
+  --inset-x-factor: 0%;
+  --text-translate-x: -100%;
+  --text-transform-origin: 100% center;
+  --text-x-position: calc(var(--x-position) + var(--target-icon-size));
+}
+
+/* Color classes */
+.animated-effect.checkmateblack, .animated-effect.checkmatewhite {
+  color: rgb(224, 40, 40);
+}
+.animated-effect.winner {
+  color: rgb(131, 184, 79);
+}
+
+/* Square overlay - colored background that fades in then out */
+.animated-effect .ae-square {
+  animation-delay: 0s, calc(var(--first-step-duration) + var(--delay));
+  animation-duration: var(--first-step-duration), var(--second-step-duration);
+  animation-fill-mode: forwards;
+  animation-name: ae-squarefadein, ae-squarefadeout;
+  background-color: #000000;
+  height: 100%;
+  position: absolute;
+  width: 100%;
+}
+.animated-effect .ae-square.checkmateblack,
+.animated-effect .ae-square.checkmatewhite {
+  background-color: rgba(224, 40, 40, var(--square-alpha));
+}
+.animated-effect .ae-square.winner {
+  background-color: rgba(131, 184, 79, var(--square-alpha));
+}
+
+/* Icon wrapper - fills the animated-effect so SVG percentages resolve correctly */
+.animated-effect .ae-icon {
   position: absolute;
   inset: 0;
-  background: v-bind('ANIMATION_COLORS.checkmate.overlay');
-  opacity: 0;
+  pointer-events: none;
+}
+/* Icon SVG - fades in at center, then slides to corner */
+/* :deep() needed because v-html content doesn't get scoped attributes */
+.animated-effect .ae-icon :deep(svg) {
+  animation-delay: 0s, calc(var(--first-step-duration) + var(--delay));
+  animation-duration: var(--first-step-duration), var(--second-step-duration);
+  animation-fill-mode: forwards;
+  animation-name: ae-fadeingrow, ae-slidecorner;
+  filter: drop-shadow(0 1px 0 rgba(0, 0, 0, 0.35));
+  left: 50%;
+  overflow: visible;
+  position: absolute;
+  top: var(--icon-starting-y);
+  transform: translate(-50%, -50%);
+  transition-timing-function: cubic-bezier(0, 0, 0.2, 1), cubic-bezier(0.42, 0, 0.58, 1);
   z-index: 2;
+}
+
+/* Icon background - circular bg that appears at final corner position */
+.animated-effect .ae-icon-background {
+  animation-delay: calc(var(--first-step-duration) + var(--delay));
+  animation-duration: var(--second-step-duration);
+  animation-fill-mode: forwards;
+  animation-name: ae-iconbackground;
+  background-color: currentColor;
+  border-radius: 50%;
+  box-shadow: 0 1px rgba(0, 0, 0, 0.35);
+  left: var(--x-position);
+  opacity: 0;
   pointer-events: none;
-  animation: checkmate-overlay-animate 800ms cubic-bezier(0, 0, 0.4, 1) forwards;
-}
-
-@keyframes checkmate-overlay-animate {
-  0% { opacity: 0; }
-  37.5% { opacity: 0.8; }
-  62.5% { opacity: 0.8; }
-  100% { opacity: 0; }  /* Fades out like brilliant */
-}
-
-/* Checkmate Icon Wrapper - contains the king icon - scaled 1.8x */
-.checkmate-icon-wrapper {
   position: absolute;
-  z-index: 5;
+  top: var(--y-position);
+  transform: translate(var(--icon-bg-translate-x), var(--icon-bg-translate-y)) scale(var(--icon-bg-scale));
+  transition-timing-function: cubic-bezier(0, 0, 0.2, 1), cubic-bezier(0.42, 0, 0.58, 1);
+  z-index: 1;
+}
+
+/* Text label - slides in, then shrinks away */
+.animated-effect .ae-text {
+  animation-delay: 0s, calc(var(--first-step-duration) + var(--delay));
+  animation-duration: var(--first-step-duration), var(--second-step-duration);
+  animation-fill-mode: forwards;
+  animation-name: ae-slidein, ae-textshrink;
+  background-color: white;
+  border-radius: 500px;
+  box-shadow: 0 1px 0 rgba(0, 0, 0, 0.35);
+  font-size: calc(var(--font-size-ratio) * var(--square-size));
+  font-weight: bold;
+  left: var(--text-x-position);
+  line-height: var(--text-line-height);
+  padding: 0 calc(var(--padding-ratio) * var(--square-size));
   pointer-events: none;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  filter: drop-shadow(0px 2px 0px rgba(0, 0, 0, 0.25));
-  /* 800ms animation - no falling, stays at final position */
-  animation: checkmate-icon-animate 800ms cubic-bezier(0, 0, 0.4, 1) forwards;
-}
-
-/* Rotated king icon (defeated/fallen look) */
-.checkmate-king-icon {
-  transform: rotate(-90deg);
-  width: 100% !important;
-  height: 100% !important;
-}
-
-/* Force fill color on checkmate king SVG */
-.checkmate-king-icon :deep(svg),
-.checkmate-king-icon :deep(svg path),
-.checkmate-king-icon :deep(svg *) {
-  fill: v-bind('checkmateIconColor') !important;
-  color: v-bind('checkmateIconColor') !important;
-  width: 100% !important;
-  height: 100% !important;
-}
-
-@keyframes checkmate-icon-animate {
-  /* State 1 (0ms) - centered, faded - 42px */
-  0% {
-    opacity: 0.1;
-    width: 42px;
-    height: 42px;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-  }
-  /* State 2 (300ms = 37.5%) - centered, visible, 51px (60% of 85px square) */
-  37.5% {
-    opacity: 1;
-    width: 51px;
-    height: 51px;
-    top: 55%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-  }
-  /* Hold State 2 (500ms = 62.5%) */
-  62.5% {
-    opacity: 1;
-    width: 51px;
-    height: 51px;
-    top: 55%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-  }
-  /* State 3: in red coin at top right (800ms = 100%) */
-  100% {
-    opacity: 1;
-    width: 29px;
-    height: 29px;
-    top: 7px;
-    left: 90%;
-    transform: translate(-50%, -50%);
-  }
-}
-
-/* Checkmate Label Bubble (white pill → red circle, stays on board) - scaled 1.8x */
-.checkmate-label-bubble {
   position: absolute;
-  left: 90%;
-  top: -11px;
-  height: 36px;
-  z-index: 4;
-  pointer-events: none;
-  box-shadow: 0px 2px 0px rgba(0, 0, 0, 0.15);
+  transform: translate(var(--text-translate-x), var(--text-translate-y));
+  transform-origin: var(--text-transform-origin);
+  transition-timing-function: cubic-bezier(0, 0, 0.2, 1), cubic-bezier(0.42, 0, 0.58, 1);
   white-space: nowrap;
-  overflow: hidden;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 18px;
-  /* 800ms animation - no falling, stays at final position */
-  animation: checkmate-pill-animate 800ms cubic-bezier(0, 0, 0.4, 1) forwards;
+  z-index: 1;
 }
 
-@keyframes checkmate-pill-animate {
-  /* State 1: centered, faded (0ms) */
-  0% {
+/* Keyframes - exact copies from Chess.com chessboard library */
+@keyframes ae-fadeingrow {
+  from {
     opacity: 0;
-    top: 50%;
-    left: 90%;
+    transform: translate(-50%, -50%) scale(0.4);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1);
+  }
+}
+@keyframes ae-slidecorner {
+  from {
+    left: 50%;
+    top: var(--icon-starting-y);
     transform: translate(-50%, -50%);
-    max-width: 200px;
-    padding: 0 11px;
-    background: white;
   }
-  /* State 2: at top, visible, white pill (300ms = 37.5%) */
-  37.5% {
-    opacity: 1;
-    top: -11px;
-    left: 90%;
-    transform: translate(-50%, 0);
-    max-width: 200px;
-    padding: 0 11px;
-    background: white;
-  }
-  /* Hold State 2 (500ms = 62.5%) */
-  62.5% {
-    opacity: 1;
-    top: -11px;
-    left: 90%;
-    transform: translate(-50%, 0);
-    max-width: 200px;
-    padding: 0 11px;
-    background: white;
-  }
-  /* State 3: red circle (800ms = 100%) - scaled from 20px to 36px */
-  100% {
-    opacity: 1;
-    top: -11px;
-    left: 90%;
-    transform: translate(-50%, 0);
-    max-width: 36px;
-    padding: 0;
-    background: v-bind('ANIMATION_COLORS.checkmate.coin');
+  to {
+    left: var(--x-position);
+    top: calc(var(--y-position) + 1%);
+    transform: translate(var(--icon-translate-x), var(--icon-translate-y)) scale(0.55);
   }
 }
-
-/* Text inside the checkmate pill - fades out - scaled 1.8x */
-.checkmate-label-text {
-  font-family: var(--font-family-heading, 'Chess Sans', sans-serif);
-  font-size: 20px;
-  font-weight: 800;
-  line-height: 36px;
-  color: v-bind('ANIMATION_COLORS.checkmate.textColor');
-  white-space: nowrap;
-  animation: checkmate-text-fade 800ms cubic-bezier(0, 0, 0.4, 1) forwards;
+@keyframes ae-slidein {
+  from {
+    opacity: 0;
+    top: calc(var(--text-y-position) + 20%);
+  }
+  to {
+    opacity: 1;
+    top: var(--text-y-position);
+  }
 }
-
-@keyframes checkmate-text-fade {
-  0% { opacity: 0; }
-  37.5% { opacity: 1; }
-  62.5% { opacity: 1; }
-  100% { opacity: 0; }
+@keyframes ae-textshrink {
+  from {
+    opacity: 1;
+    transform: translate(var(--text-translate-x), var(--text-translate-y));
+  }
+  to {
+    opacity: 0;
+    transform: translate(var(--text-translate-x), var(--text-translate-y)) scaleX(0);
+  }
+}
+@keyframes ae-iconbackground {
+  from {
+    opacity: 0;
+    padding: var(--target-icon-size) 40%;
+  }
+  to {
+    opacity: 1;
+    padding: var(--target-icon-size);
+  }
+}
+@keyframes ae-squarefadein {
+  from { opacity: 0; }
+  to { opacity: var(--target-opacity); }
+}
+@keyframes ae-squarefadeout {
+  from { opacity: var(--target-opacity); }
+  to { opacity: 0; }
 }
 </style>
