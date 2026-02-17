@@ -149,7 +149,6 @@ function onAfterLeave() {
 
 .bubble-leave-to {
   opacity: 0;
-  transform: translateY(-3rem);
 }
 
 /* Respect reduced motion preferences */
