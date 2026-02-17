@@ -112,6 +112,8 @@ const lastMove = ref(null) // { from, to }
 
 // Hint state
 const hintHighlightSquare = ref(null)  // square to highlight with blue overlay (piece to move)
+const lastCorrectMessage = ref('')     // Persists the correct message through computer-moving/awaiting
+const lastCorrectNotation = ref('')    // Persists the move notation through computer-moving/awaiting
 const showMoveArrow = ref(false)       // whether the hint arrow is visible
 const checkpointPieces = ref([]) // Saved board state for retry after wrong move
 
@@ -245,6 +247,9 @@ const coachHeaderText = computed(() => {
   if (puzzlePhase.value === 'intro') {
     return puzzle.title
   }
+  if (puzzlePhase.value === 'solved') {
+    return 'Solved!'
+  }
   return '' // Let CoachBubble derive from state
 })
 
@@ -254,27 +259,28 @@ const coachMessage = computed(() => {
     return '26 days in a row — that\'s a chess marathon! Ready to solve another?'
   }
   if (puzzlePhase.value === 'solved') {
-    if (lives.value === 0) {
-      return 'To learn a little more about this puzzle, watch the master video.'
-    }
-    return puzzle.results.title + ' Puzzle complete!'
+    return 'Nice job! To learn a little more about this puzzle, watch the video.'
   }
   switch (moveState.value) {
     case 'awaiting':
-      return currentMoveIndex.value === 0
-        ? 'Find the best move for white.'
-        : 'Find the next move!'
+      if (currentMoveIndex.value === 0) return 'Find the best move for white.'
+      return lastCorrectMessage.value || '' // Keep showing correct message until next move
     case 'wrong':
-      return "That's not the right move. Try again!"
+      lastCorrectMessage.value = ''
+      return "There's a better move, try again."
     case 'hint':
       return puzzle.hint
     case 'correct': {
       const move = currentExpectedMove.value
-      if (move?.isCheckmate) return `${move.notation}# Checkmate!`
-      return `${move?.notation} is correct!`
+      if (move?.isCheckmate) {
+        lastCorrectMessage.value = `${move.notation}# Checkmate!`
+      } else {
+        lastCorrectMessage.value = `${move?.notation} is correct!`
+      }
+      return lastCorrectMessage.value
     }
     case 'computer-moving':
-      return 'Black responds...'
+      return lastCorrectMessage.value || '' // Keep correct message during computer's turn
     default:
       return ''
   }
@@ -287,21 +293,30 @@ const coachState = computed(() => {
   switch (moveState.value) {
     case 'wrong': return 'incorrect'
     case 'correct': return 'correct'
-    case 'computer-moving': return 'black-to-move'
+    case 'computer-moving': return lastCorrectMessage.value ? 'correct' : 'black-to-move'
+    case 'awaiting': return lastCorrectMessage.value ? 'correct' : 'white-to-move'
     default: return 'white-to-move'
   }
 })
 
 // Move notation for correct/incorrect states
 const moveNotation = computed(() => {
-  if (!lastMove.value) return ''
+  if (!lastMove.value) return lastCorrectNotation.value || ''
   if (puzzlePhase.value === 'solved' && lives.value === 0) return ''
   if (moveState.value === 'correct') {
     const move = puzzle.moves.find(m => m.from === lastMove.value.from && m.to === lastMove.value.to)
-    return move ? move.notation : lastMove.value.to
+    const notation = move ? move.notation : lastMove.value.to
+    lastCorrectNotation.value = notation
+    return notation
+  }
+  if (moveState.value === 'computer-moving' || moveState.value === 'awaiting') {
+    return lastCorrectNotation.value || ''
   }
   if (moveState.value === 'wrong') {
-    return lastMove.value.to
+    lastCorrectNotation.value = ''
+    const pieceLetters = { 'wr': 'R', 'wn': 'N', 'wb': 'B', 'wq': 'Q', 'wk': 'K', 'br': 'R', 'bn': 'N', 'bb': 'B', 'bq': 'Q', 'bk': 'K' }
+    const pieceLetter = pieceLetters[lastMove.value.pieceType] || ''
+    return `${pieceLetter}${lastMove.value.to}`
   }
   return ''
 })
@@ -311,9 +326,25 @@ const showCoachBubble = ref(true)
 let coachBubblePendingShow = false
 let solutionPlaying = false
 
-watch([coachMessage, coachHeaderText, coachState, moveNotation], () => {
+let prevCoachSnapshot = ''
+watch([coachMessage, coachHeaderText, coachState, moveNotation], (newVals, oldVals) => {
   if (solutionPlaying) return
   if (replayPly.value !== -1) return // Suppress coach during replay navigation
+  const newMsg = newVals[0]
+  if (!newMsg) {
+    // Message became empty — hide the bubble (fade out)
+    if (showCoachBubble.value) {
+      showCoachBubble.value = false
+    }
+    coachBubblePendingShow = false
+    prevCoachSnapshot = ''
+    return
+  }
+  // If nothing meaningful changed, don't re-animate the bubble
+  const snapshot = newVals.join('|')
+  if (snapshot === prevCoachSnapshot) return
+  prevCoachSnapshot = snapshot
+
   if (showCoachBubble.value) {
     coachBubblePendingShow = true
     showCoachBubble.value = false
@@ -325,7 +356,7 @@ watch([coachMessage, coachHeaderText, coachState, moveNotation], () => {
 function onCoachBubbleLeave() {
   if (solutionPlaying) return
   if (replayPly.value !== -1) return // Don't re-show coach during replay
-  if (coachBubblePendingShow) {
+  if (coachBubblePendingShow && coachMessage.value) {
     coachBubblePendingShow = false
     showCoachBubble.value = true
   }
@@ -517,6 +548,8 @@ const loadPuzzle = () => {
   showMoveArrow.value = false
   replayPly.value = -1
   replayPositions.value = []
+  lastCorrectMessage.value = ''
+  lastCorrectNotation.value = ''
 }
 
 // Reset the puzzle back to the intro screen
@@ -730,9 +763,11 @@ const scheduleNextMove = (afterDelay = 3800) => {
   setTimeout(() => {
     const nextIndex = currentMoveIndex.value + 1
     if (nextIndex >= puzzle.moves.length) {
-      puzzlePhase.value = 'solved'
-      stopTimer()
-      playPuzzleSound('puzzleSolved')
+      setTimeout(() => {
+        puzzlePhase.value = 'solved'
+        stopTimer()
+        playPuzzleSound('puzzleSolved')
+      }, 200)
       return
     }
     
@@ -817,9 +852,11 @@ const tryMove = (from, to) => {
     if (isCheckmate) {
       const isBlackKing = true // White checkmates black king
       triggerCheckmateAnimation(kingSquare, isBlackKing, () => {
-        puzzlePhase.value = 'solved'
-        stopTimer()
-        playPuzzleSound('puzzleSolved')
+        setTimeout(() => {
+          puzzlePhase.value = 'solved'
+          stopTimer()
+          playPuzzleSound('puzzleSolved')
+        }, 200)
       })
     } else {
       // Advance to next move after a short delay
@@ -829,9 +866,10 @@ const tryMove = (from, to) => {
     return true
   } else {
     // Wrong move - still execute the move visually
+    const wrongPiece = getPieceOnSquare(from)
     const isCapture = getPieceOnSquare(to) !== undefined
     makeMove(from, to)
-    lastMove.value = { from, to }
+    lastMove.value = { from, to, pieceType: wrongPiece?.type }
     
     // Play incorrect sound for wrong move
     playPuzzleSound('incorrect')
@@ -1040,6 +1078,8 @@ onUnmounted(() => {
   // Clean up timer
   stopTimer()
 })
+
+
 </script>
 
 <template>
@@ -1229,6 +1269,23 @@ onUnmounted(() => {
               <span class="timer-text">{{ timerDisplay }}</span>
             </div>
           </div>
+
+          <!-- Video Explanation Card (solved state) -->
+          <div v-if="puzzlePhase === 'solved'" class="video-card">
+            <img 
+              class="video-card-avatar" 
+              src="/ChessPrototypes/new-daily-puzzle/images/fiona.png" 
+              alt="Fiona Steil-Antoni"
+            />
+            <div class="video-card-info">
+              <p class="video-card-text">
+                Learn more about this puzzle<br/>from <span class="video-card-title-badge">GM</span> <span class="video-card-name">{{ puzzle.results.videoInstructor.split('·')[0].trim().replace('GM ', '') }}</span>
+              </p>
+            </div>
+            <CcButton variant="secondary" size="small" @click="openVideo">
+              Watch Video
+            </CcButton>
+          </div>
         </div>
 
         <!-- Footer -->
@@ -1253,10 +1310,17 @@ onUnmounted(() => {
               <CcButton 
                 variant="primary" 
                 size="large" 
-                :icon="{ name: 'element-star-fill' }"
-                class="complete-button"
+                :icon="{ name: 'arrow-spin-undo' }"
+                @click="resetPuzzle"
               >
-                Puzzle Complete!
+                Replay
+              </CcButton>
+              <CcButton 
+                variant="secondary" 
+                size="large" 
+                :icon="{ name: 'message-bubble-fill-pair' }"
+              >
+                Comments
               </CcButton>
             </template>
             <!-- Wrong move: Solution + Retry -->
@@ -1332,6 +1396,13 @@ body {
   color: var(--color-text-boldest, white);
   font-family: var(--font-family-system, -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, Helvetica, Arial, sans-serif);
   user-select: none;
+}
+
+/* Fix: cc-button-small missing --fontSize and font-family in design system CSS */
+.cc-button-small {
+  --fontSize: 1.4rem;
+  --borderRadius: var(--radius-5, .5rem);
+  font-family: var(--font-family-body, -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, Helvetica, Arial, sans-serif);
 }
 </style>
 
@@ -1592,6 +1663,56 @@ body {
   font-feature-settings: 'lnum' 1, 'tnum' 1;
 }
 
+/* Video Explanation Card */
+.video-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+  background: var(--color-bg-subtlest, rgba(255, 255, 255, 0.02));
+  border-radius: 10px;
+  width: 100%;
+}
+
+.video-card-avatar {
+  width: 48px;
+  height: 48px;
+  border-radius: 3px;
+  object-fit: cover;
+  flex-shrink: 0;
+}
+
+.video-card-info {
+  flex: 1;
+  min-width: 0;
+  height: fit-content;
+}
+
+.video-card-text {
+  font-family: var(--font-family-system, -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, Helvetica, Arial, sans-serif);
+  font-weight: 600;
+  font-size: 14px;
+  line-height: 20px;
+  color: var(--color-text-boldest, white);
+  margin: 0;
+}
+
+.video-card-title-badge {
+  display: inline-block;
+  background: var(--color-bg-chesstitle, #7c2929);
+  color: white;
+  font-size: 10px;
+  line-height: 10px;
+  font-weight: 600;
+  padding: 2px 3px;
+  border-radius: 3px;
+  vertical-align: middle;
+}
+
+.video-card-name {
+  font-weight: 600;
+}
+
 /* Solved By Text */
 .solved-by-text {
   /* paragraph-medium-bold: 14px/20px, 600, system font */
@@ -1678,7 +1799,7 @@ body {
   padding: 1.6rem 2.4rem;
   display: flex;
   flex-direction: column;
-  gap: 1.6rem;
+  gap: 1.2rem;
 }
 
 .action-buttons {

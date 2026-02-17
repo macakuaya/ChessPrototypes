@@ -1,5 +1,6 @@
 <script setup>
 import { computed, ref, watch } from 'vue'
+import { CcIcon } from '@chesscom/design-system'
 
 const base = import.meta.env.BASE_URL
 
@@ -173,17 +174,11 @@ function onAfterLeave() {
                 <!-- Black to move: black square with gray border -->
                 <div v-if="state === 'black-to-move'" class="color-indicator black-indicator"></div>
                 
-                <!-- Correct: green checkmark circle -->
-                <svg v-if="state === 'correct'" class="state-icon correct-icon" width="24" height="24" viewBox="0 0 24 24" fill="none">
-                  <circle cx="12" cy="12" r="12" fill="#81B64C"/>
-                  <path d="M7 12.5L10.5 16L17 9" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
-                </svg>
+                <!-- Correct: classification-correct color icon -->
+                <CcIcon v-if="state === 'correct'" name="classification-correct" variant="color" :size="24" class="state-icon" />
                 
-                <!-- Incorrect: red X circle -->
-                <svg v-if="state === 'incorrect'" class="state-icon incorrect-icon" width="24" height="24" viewBox="0 0 24 24" fill="none">
-                  <circle cx="12" cy="12" r="12" fill="#E02828"/>
-                  <path d="M8 8L16 16M16 8L8 16" stroke="white" stroke-width="2.5" stroke-linecap="round"/>
-                </svg>
+                <!-- Incorrect: miss classification icon -->
+                <CcIcon v-if="state === 'incorrect'" name="classification-miss" variant="color" :size="24" class="state-icon" />
                 
                 <span class="classification-text">{{ displayHeaderText }}</span>
               </div>
