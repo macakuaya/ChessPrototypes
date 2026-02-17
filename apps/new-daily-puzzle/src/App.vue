@@ -291,6 +291,7 @@ const coachMessage = computed(() => {
       return lastCorrectMessage.value || '' // Keep showing correct message until next move
     case 'wrong':
       lastCorrectMessage.value = ''
+      if (lives.value === 0) return "Out of hearts! See the solution or keep trying on your own."
       return "There's a better move, try again."
     case 'hint':
       return puzzle.hint
@@ -313,7 +314,7 @@ const coachMessage = computed(() => {
 // Coach bubble state based on puzzle state
 const coachState = computed(() => {
   if (puzzlePhase.value === 'intro') return 'default'
-  if (puzzlePhase.value === 'solved') return lives.value === 0 ? 'default' : 'correct'
+  if (puzzlePhase.value === 'solved') return 'correct'
   switch (moveState.value) {
     case 'wrong': return 'incorrect'
     case 'correct': return 'correct'
@@ -373,7 +374,8 @@ watch([coachMessage, coachHeaderText, coachState, moveNotation], (newVals, oldVa
     coachBubblePendingShow = true
     showCoachBubble.value = false
   } else {
-    coachBubblePendingShow = true
+    // Bubble is already hidden — show it directly (no leave transition to wait for)
+    showCoachBubble.value = true
   }
 })
 
@@ -1376,33 +1378,36 @@ onUnmounted(() => {
             <!-- Solved state -->
             <template v-else-if="puzzlePhase === 'solved'">
               <CcButton 
-                variant="primary" 
-                size="large" 
-                :icon="{ name: 'arrow-spin-undo' }"
-                @click="resetPuzzle"
-              >
-                Replay
-              </CcButton>
-              <CcButton 
                 variant="secondary" 
                 size="large" 
                 :icon="{ name: 'message-bubble-fill-pair' }"
               >
                 Comments
               </CcButton>
+              <CcButton 
+                variant="primary" 
+                size="large" 
+                :icon="{ name: 'graph-nodes-share' }"
+              >
+                Share
+              </CcButton>
             </template>
-            <!-- Wrong move: Solution + Retry -->
+            <!-- Wrong move: Retry (has lives) / Solution + Keep Going (out of lives) -->
             <template v-else-if="moveState === 'wrong'">
-              <CcButton variant="secondary" size="large" :icon="{ name: 'circle-fill-info' }" @click="handleSolution">Solution</CcButton>
-              <CcButton variant="danger" size="large" :icon="{ name: 'arrow-spin-undo' }" @click="handleRetry">Retry</CcButton>
+              <template v-if="lives > 0">
+                <CcButton variant="danger" size="large" :icon="{ name: 'arrow-spin-undo' }" @click="handleRetry">Retry</CcButton>
+              </template>
+              <template v-else>
+                <CcButton variant="secondary" size="large" :icon="{ name: 'circle-fill-info' }" @click="handleSolution">Solution</CcButton>
+                <CcButton variant="primary" size="large" :icon="{ name: 'arrow-line-right' }" @click="handleRetry">Keep Going</CcButton>
+              </template>
             </template>
             <!-- Awaiting / hint / correct / computer-moving: Hint → Move flow -->
             <template v-else>
               <CcButton 
                 variant="secondary" 
                 size="large" 
-                :icon="{ name: moveState === 'hint' ? 'circle-fill-question' : 'emote-heart-broken' }" 
-                :disabled="(moveState !== 'awaiting' && moveState !== 'hint') || showMoveArrow"
+                :icon="{ name: moveState === 'hint' ? 'circle-fill-question' : icons.hint }" 
                 @click="moveState === 'hint' ? handleShowMoveArrow() : handleHint()"
               >
                 {{ moveState === 'hint' ? 'Move' : 'Hint' }}
@@ -1412,6 +1417,15 @@ onUnmounted(() => {
           <div class="toolbar">
             <div class="toolbar-left">
               <CcIconButton
+                v-if="puzzlePhase === 'solved'"
+                :icon="{ name: 'arrow-spin-undo', variant: 'glyph' }"
+                variant="ghost"
+                size="small"
+                :iconSize="20"
+                @click="resetPuzzle"
+              />
+              <CcIconButton
+                v-else
                 :icon="{ name: 'graph-nodes-share', variant: 'glyph' }"
                 variant="ghost"
                 size="small"
