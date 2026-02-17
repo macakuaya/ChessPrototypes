@@ -112,7 +112,69 @@ const lastMove = ref(null) // { from, to }
 
 // Hint state
 const hintHighlightSquare = ref(null)  // square to highlight with blue overlay (piece to move)
+const showMoveArrow = ref(false)       // whether the hint arrow is visible
 const checkpointPieces = ref([]) // Saved board state for retry after wrong move
+
+// Replay navigation (solved state)
+const replayPly = ref(-1) // -1 means not replaying, 0 = initial, 1..n = after move n
+const replayPositions = ref([]) // Array of board snapshots: [initial, after move 0, after move 1, ...]
+
+// Build replay positions by replaying all moves from initial FEN
+const buildReplayPositions = () => {
+  const positions = []
+  const boardState = parseFEN(puzzle.initialFEN)
+  positions.push({ pieces: JSON.parse(JSON.stringify(boardState)), lastMove: null })
+  
+  for (const move of puzzle.moves) {
+    // Remove captured piece
+    const idx = boardState.findIndex(p => p.square === move.to)
+    if (idx !== -1) boardState.splice(idx, 1)
+    // Move the piece
+    const piece = boardState.find(p => p.square === move.from)
+    if (piece) piece.square = move.to
+    positions.push({ pieces: JSON.parse(JSON.stringify(boardState)), lastMove: { from: move.from, to: move.to } })
+  }
+  replayPositions.value = positions
+}
+
+// Navigate to a specific replay ply
+const replayGoTo = (ply) => {
+  if (replayPositions.value.length === 0) return
+  const clamped = Math.max(0, Math.min(ply, replayPositions.value.length - 1))
+  replayPly.value = clamped
+  const snapshot = replayPositions.value[clamped]
+  pieces.value = JSON.parse(JSON.stringify(snapshot.pieces))
+  lastMove.value = snapshot.lastMove
+  checkmateHighlight.value = null
+}
+
+const replayBack = () => {
+  if (replayPly.value === -1) {
+    // First click: enter replay at the last ply minus 1
+    buildReplayPositions()
+    showCoachBubble.value = false
+    coachBubblePendingShow = false
+    replayGoTo(replayPositions.value.length - 2)
+  } else if (replayPly.value > 0) {
+    replayGoTo(replayPly.value - 1)
+  }
+}
+
+const replayForward = () => {
+  if (replayPly.value === -1) return
+  if (replayPly.value < replayPositions.value.length - 1) {
+    replayGoTo(replayPly.value + 1)
+  }
+  // If we're back at the final position, exit replay mode, restore checkmate highlight, and show coach again
+  if (replayPly.value === replayPositions.value.length - 1) {
+    replayPly.value = -1
+    const lastPuzzleMove = puzzle.moves[puzzle.moves.length - 1]
+    if (lastPuzzleMove && lastPuzzleMove.isCheckmate && lastPuzzleMove.kingSquare) {
+      checkmateHighlight.value = lastPuzzleMove.kingSquare
+    }
+    showCoachBubble.value = true
+  }
+}
 const lives = ref(puzzle.results.totalLives) // Hearts / lives remaining
 const timerSeconds = ref(0) // Puzzle timer in seconds
 let timerInterval = null
@@ -192,6 +254,9 @@ const coachMessage = computed(() => {
     return '26 days in a row — that\'s a chess marathon! Ready to solve another?'
   }
   if (puzzlePhase.value === 'solved') {
+    if (lives.value === 0) {
+      return 'To learn a little more about this puzzle, watch the master video.'
+    }
     return puzzle.results.title + ' Puzzle complete!'
   }
   switch (moveState.value) {
@@ -218,7 +283,7 @@ const coachMessage = computed(() => {
 // Coach bubble state based on puzzle state
 const coachState = computed(() => {
   if (puzzlePhase.value === 'intro') return 'default'
-  if (puzzlePhase.value === 'solved') return 'correct'
+  if (puzzlePhase.value === 'solved') return lives.value === 0 ? 'default' : 'correct'
   switch (moveState.value) {
     case 'wrong': return 'incorrect'
     case 'correct': return 'correct'
@@ -230,6 +295,7 @@ const coachState = computed(() => {
 // Move notation for correct/incorrect states
 const moveNotation = computed(() => {
   if (!lastMove.value) return ''
+  if (puzzlePhase.value === 'solved' && lives.value === 0) return ''
   if (moveState.value === 'correct') {
     const move = puzzle.moves.find(m => m.from === lastMove.value.from && m.to === lastMove.value.to)
     return move ? move.notation : lastMove.value.to
@@ -243,8 +309,11 @@ const moveNotation = computed(() => {
 // Coach bubble fade animation (match Skills app behavior)
 const showCoachBubble = ref(true)
 let coachBubblePendingShow = false
+let solutionPlaying = false
 
 watch([coachMessage, coachHeaderText, coachState, moveNotation], () => {
+  if (solutionPlaying) return
+  if (replayPly.value !== -1) return // Suppress coach during replay navigation
   if (showCoachBubble.value) {
     coachBubblePendingShow = true
     showCoachBubble.value = false
@@ -254,6 +323,8 @@ watch([coachMessage, coachHeaderText, coachState, moveNotation], () => {
 })
 
 function onCoachBubbleLeave() {
+  if (solutionPlaying) return
+  if (replayPly.value !== -1) return // Don't re-show coach during replay
   if (coachBubblePendingShow) {
     coachBubblePendingShow = false
     showCoachBubble.value = true
@@ -297,6 +368,64 @@ const GAP_SIZE = 32 // gap between board and panel (3.2rem)
 
 // Check if square has hint highlight (blue overlay on piece to move)
 const hasHintHighlight = (square) => hintHighlightSquare.value === square
+
+// Arrow data for hint move arrow (Chess.com style: single filled polygon with rectangular body + wide triangular head)
+// Proportions from Chess.com's UniversalBoardDrawer: lineWidth=15, arrowheadWidth=55, arrowheadHeight=45, startOffset=20 per 100px square
+const moveArrowData = computed(() => {
+  if (!showMoveArrow.value) return null
+  const expected = currentExpectedMove.value
+  if (!expected) return null
+  
+  const toPixel = (sq) => {
+    const file = sq.charCodeAt(0) - 'a'.charCodeAt(0)
+    const rank = parseInt(sq[1]) - 1
+    return {
+      x: file * SQUARE_SIZE + SQUARE_SIZE / 2,
+      y: (7 - rank) * SQUARE_SIZE + SQUARE_SIZE / 2
+    }
+  }
+  
+  const from = toPixel(expected.from)
+  const to = toPixel(expected.to)
+  
+  const dx = to.x - from.x
+  const dy = to.y - from.y
+  const len = Math.sqrt(dx * dx + dy * dy)
+  if (len === 0) return null
+  
+  const scale = SQUARE_SIZE / 100
+  const bodyWidth = 15 * scale
+  const headWidth = 55 * scale
+  const headLength = 45 * scale
+  const startOffset = 20 * scale
+  
+  const dirX = dx / len
+  const dirY = dy / len
+  const perpX = -dirY
+  const perpY = dirX
+  
+  const neckDist = len - headLength
+  
+  const points = [
+    { x: from.x + dirX * startOffset + perpX * bodyWidth / 2,
+      y: from.y + dirY * startOffset + perpY * bodyWidth / 2 },
+    { x: from.x + dirX * neckDist + perpX * bodyWidth / 2,
+      y: from.y + dirY * neckDist + perpY * bodyWidth / 2 },
+    { x: from.x + dirX * neckDist + perpX * headWidth / 2,
+      y: from.y + dirY * neckDist + perpY * headWidth / 2 },
+    { x: to.x, y: to.y },
+    { x: from.x + dirX * neckDist - perpX * headWidth / 2,
+      y: from.y + dirY * neckDist - perpY * headWidth / 2 },
+    { x: from.x + dirX * neckDist - perpX * bodyWidth / 2,
+      y: from.y + dirY * neckDist - perpY * bodyWidth / 2 },
+    { x: from.x + dirX * startOffset - perpX * bodyWidth / 2,
+      y: from.y + dirY * startOffset - perpY * bodyWidth / 2 },
+  ]
+  
+  return {
+    polygon: points.map(p => `${p.x},${p.y}`).join(' ')
+  }
+})
 
 // Check if square has brilliant highlight
 const hasBrilliantHighlight = (square) => brilliantHighlight.value === square
@@ -370,6 +499,7 @@ const restoreCheckpoint = () => {
   lastMove.value = null
   checkmateHighlight.value = null
   hintHighlightSquare.value = null
+  showMoveArrow.value = false
   moveState.value = 'awaiting'
 }
 
@@ -384,6 +514,9 @@ const loadPuzzle = () => {
   lastMove.value = null
   checkmateHighlight.value = null
   hintHighlightSquare.value = null
+  showMoveArrow.value = false
+  replayPly.value = -1
+  replayPositions.value = []
 }
 
 // Reset the puzzle back to the intro screen
@@ -650,6 +783,7 @@ const tryMove = (from, to) => {
   
   // Clear hint visuals when user makes any move
   hintHighlightSquare.value = null
+  showMoveArrow.value = false
   
   // Check if this is the correct move
   const expected = currentExpectedMove.value
@@ -807,25 +941,62 @@ const handleHint = () => {
   }
 }
 
-const showSolution = () => {
-  // Restore board first (undo the wrong move), then play the correct move
+const handleSolution = () => {
+  // Lose all remaining lives
+  lives.value = 0
+  // Hide coach bubble during solution animation
+  solutionPlaying = true
+  showCoachBubble.value = false
+  coachBubblePendingShow = false
+  // Restore board (undo wrong move), then auto-play all remaining moves
   restoreCheckpoint()
-  const expected = currentExpectedMove.value
-  makeMove(expected.from, expected.to)
-  moveState.value = 'correct'
-  lastMove.value = { from: expected.from, to: expected.to }
-  playSound('move')
-  // Update progress immediately (no animation)
-  displayedProgress.value = actualProgress.value
-  displayedStreak.value = streak.value
+  moveState.value = 'computer-moving'
+  hintHighlightSquare.value = null
+  showMoveArrow.value = false
   
-  if (expected.isCheckmate) {
+  const remainingMoves = puzzle.moves.slice(currentMoveIndex.value)
+  let delay = 400
+  
+  remainingMoves.forEach((move, i) => {
     setTimeout(() => {
-      puzzlePhase.value = 'solved'
-    }, 1000)
-  } else {
-    scheduleNextMove(1500)
-  }
+      const isCapture = getPieceOnSquare(move.to) !== undefined
+      makeMove(move.from, move.to)
+      lastMove.value = { from: move.from, to: move.to }
+      
+      if (isCapture) {
+        playSound('capture')
+      } else {
+        playSound('move')
+      }
+      
+      currentMoveIndex.value = currentMoveIndex.value + 1
+      displayedProgress.value = actualProgress.value
+      displayedStreak.value = streak.value
+      
+      // After the last move, mark puzzle as solved
+      if (i === remainingMoves.length - 1) {
+        moveState.value = 'correct'
+        setTimeout(() => {
+          solutionPlaying = false
+          puzzlePhase.value = 'solved'
+          stopTimer()
+          playPuzzleSound('puzzleSolved')
+          // Show coach bubble after state has settled
+          nextTick(() => {
+            coachBubblePendingShow = false
+            showCoachBubble.value = true
+          })
+        }, 1000)
+      }
+    }, delay)
+    delay += 800
+  })
+}
+
+const handleShowMoveArrow = () => {
+  // Show the arrow pointing to where the piece should go and lose a life (from hint state)
+  loseLife()
+  showMoveArrow.value = true
 }
 
 const handleRetry = () => {
@@ -956,6 +1127,14 @@ onUnmounted(() => {
               <span v-if="square[0] === 'a'" class="coord rank-coord">{{ square[1] }}</span>
             </div>
 
+            <!-- Hint Move Arrow (SVG overlay, Chess.com style) -->
+            <svg v-if="showMoveArrow && moveArrowData" class="board-arrow-overlay" viewBox="0 0 680 680">
+              <polygon
+                :points="moveArrowData.polygon"
+                fill="#F7A501" opacity="0.8"
+              />
+            </svg>
+
           </div>
           
         </div>
@@ -1082,24 +1261,56 @@ onUnmounted(() => {
             </template>
             <!-- Wrong move: Solution + Retry -->
             <template v-else-if="moveState === 'wrong'">
-              <CcButton variant="secondary" size="large" :icon="{ name: 'circle-fill-question' }" @click="showSolution">Solution</CcButton>
+              <CcButton variant="secondary" size="large" :icon="{ name: 'circle-fill-info' }" @click="handleSolution">Solution</CcButton>
               <CcButton variant="danger" size="large" :icon="{ name: 'arrow-spin-undo' }" @click="handleRetry">Retry</CcButton>
             </template>
-            <!-- Awaiting / hint / correct / computer-moving: Hint button (disabled when not awaiting) -->
+            <!-- Awaiting / hint / correct / computer-moving: Hint → Move flow -->
             <template v-else>
               <CcButton 
                 variant="secondary" 
                 size="large" 
-                :icon="{ name: 'emote-heart-broken' }" 
-                :disabled="moveState !== 'awaiting'"
-                @click="handleHint"
+                :icon="{ name: moveState === 'hint' ? 'circle-fill-question' : 'emote-heart-broken' }" 
+                :disabled="(moveState !== 'awaiting' && moveState !== 'hint') || showMoveArrow"
+                @click="moveState === 'hint' ? handleShowMoveArrow() : handleHint()"
               >
-                Hint
+                {{ moveState === 'hint' ? 'Move' : 'Hint' }}
               </CcButton>
             </template>
           </div>
           <div class="toolbar">
-            <CcIcon :name="icons.settings" :size="24" class="toolbar-icon" />
+            <div class="toolbar-left">
+              <CcIconButton
+                :icon="{ name: 'graph-nodes-share', variant: 'glyph' }"
+                variant="ghost"
+                size="small"
+                :iconSize="20"
+              />
+              <CcIconButton
+                v-if="puzzlePhase === 'solved'"
+                :icon="{ name: 'tool-magnifier-checker-1', variant: 'glyph' }"
+                variant="ghost"
+                size="small"
+                :iconSize="20"
+              />
+            </div>
+            <div v-if="puzzlePhase === 'solved'" class="toolbar-nav">
+              <CcIconButton
+                :icon="{ name: 'arrow-chevron-left', variant: 'glyph' }"
+                variant="ghost"
+                size="small"
+                :iconSize="20"
+                :disabled="replayPly === 0"
+                @click="replayBack"
+              />
+              <CcIconButton
+                :icon="{ name: 'arrow-chevron-right', variant: 'glyph' }"
+                variant="ghost"
+                size="small"
+                :iconSize="20"
+                :disabled="replayPly === -1"
+                @click="replayForward"
+              />
+            </div>
           </div>
         </footer>
       </div>
@@ -1201,6 +1412,15 @@ body {
   pointer-events: none;
 }
 
+/* Hint move arrow - SVG overlay on the board */
+.board-arrow-overlay {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 5;
+  pointer-events: none;
+}
 
 .piece {
   width: 100%;
@@ -1483,14 +1703,12 @@ body {
   align-items: center;
 }
 
-.toolbar-icon {
-  color: var(--color-icon-default, rgba(255, 255, 255, 0.72));
-  cursor: pointer;
+.toolbar-left {
+  display: flex;
 }
 
 .toolbar-nav {
   display: flex;
-  gap: 0.8rem;
 }
 
 /* ========== BOARD WRAPPER ========== */
