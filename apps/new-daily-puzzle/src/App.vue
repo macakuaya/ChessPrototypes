@@ -63,6 +63,9 @@ const ANIMATION_COLORS = {
   },
 }
 
+// Asset URLs (use BASE_URL for correct resolution in both dev and build)
+const fionaAvatarUrl = import.meta.env.BASE_URL + 'images/fiona.png'
+
 // ============================================
 // PUZZLE DATA
 // ============================================
@@ -1339,7 +1342,7 @@ onUnmounted(() => {
           <div v-if="puzzlePhase === 'solved'" class="video-card">
             <img 
               class="video-card-avatar" 
-              src="/ChessPrototypes/new-daily-puzzle/images/fiona.png" 
+              :src="fionaAvatarUrl" 
               alt="Fiona Steil-Antoni"
             />
             <div class="video-card-info">
