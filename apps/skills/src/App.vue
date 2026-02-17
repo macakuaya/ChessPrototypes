@@ -232,8 +232,10 @@ watch(showBoardCelebration, (newVal) => {
 })
 
 // Called when coach bubble finishes its leave animation
-// Coach FTUE voice audio
+// Coach voice audio
 let coachFtueAudio = null
+let coachMoveCommentaryAudio = null
+let coachCounterGambitAudio = null
 
 function onCoachBubbleLeave() {
   // Don't restore original bubble during skill animation - wait for celebration flow
@@ -244,8 +246,18 @@ function onCoachBubbleLeave() {
   
   // If bubble just faded out with FTUE or encouraging content (after Continue), restore original
   if ((coachBubbleMode.value === 'ftue' || coachBubbleMode.value === 'encouraging') && !showBoardCelebration.value) {
+    const wasftue = coachBubbleMode.value === 'ftue'
     coachBubbleMode.value = 'original'
     showCoachBubble.value = true
+    
+    // Play move commentary audio when restoring after FTUE message
+    if (wasftue) {
+      if (!coachMoveCommentaryAudio) {
+        coachMoveCommentaryAudio = new Audio(`${import.meta.env.BASE_URL}sounds/coach-move-commentary.mp3`)
+      }
+      coachMoveCommentaryAudio.currentTime = 0
+      coachMoveCommentaryAudio.play().catch(e => console.warn('Could not play move commentary audio:', e))
+    }
   }
 }
 
@@ -1022,6 +1034,14 @@ watch(activePly, (newPly, oldPly) => {
     playMoveSound(moveNotation)
     
     if (selectedPrototype.value === 'ftue') {
+      // 4...b5 (ply 8) - Play coach voice-over for counter-gambit commentary
+      if (newPly === 8) {
+        if (!coachCounterGambitAudio) {
+          coachCounterGambitAudio = new Audio(`${import.meta.env.BASE_URL}sounds/coach-counter-gambit.mp3`)
+        }
+        coachCounterGambitAudio.currentTime = 0
+        coachCounterGambitAudio.play().catch(e => console.warn('Could not play counter-gambit audio:', e))
+      }
       // FTUE triggers
       // 5. Bxb5 (ply 9) - Capture
       if (newPly === 9 && captureCount.value === 0 && !showSkillEarned.value) {
