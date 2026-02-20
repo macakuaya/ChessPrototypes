@@ -74,9 +74,18 @@
           <div class="nav-footer-btn">
             <cc-icon name="message-envelope-fill" :size="20" />
           </div>
-          <div class="nav-footer-btn" @click="$emit('toggle-notifications')">
+          <div
+            class="nav-footer-btn"
+            :class="{ 'nav-footer-btn-active': showNotifications }"
+            @click.stop="toggleNotifications"
+          >
             <cc-icon name="media-bell-fill" :size="20" />
-            <cc-notification-badge :label="2" variant="alert" class="nav-badge" />
+            <cc-notification-badge
+              v-if="notificationCount > 0"
+              :label="notificationCount"
+              variant="alert"
+              class="nav-badge"
+            />
           </div>
           <div class="nav-footer-btn">
             <cc-icon name="utility-cogwheel" :size="20" />
@@ -85,8 +94,77 @@
       </div>
     </nav>
 
-    <main class="page-content">
-      <!-- Notification panel will be built here -->
+    <!-- Notifications Popover -->
+    <div v-if="showNotifications" class="notif-popover" @click.stop>
+      <!-- Notification List -->
+      <div class="notif-list">
+        <div
+          v-for="n in filteredNotifications"
+          :key="n.id"
+          class="notif-item"
+          :class="{ 'notif-item-detailed': n.hasActions || n.rollup }"
+        >
+          <cc-avatar :src="n.avatar" :size="32" click-behavior="none" />
+          <div class="notif-content">
+            <div class="notif-text-block">
+              <div class="notif-header">
+                <span class="notif-username cc-text-medium-bold">{{ n.title }}</span>
+                <span class="notif-time cc-text-x-small">{{ n.time }}</span>
+              </div>
+              <div class="notif-body-row">
+                <span
+                  class="notif-body"
+                  :class="n.unread ? 'cc-text-small-bold' : 'cc-text-small'"
+                >{{ n.body }}</span>
+                <span v-if="n.unread" class="notif-dot"></span>
+              </div>
+            </div>
+            <!-- Action buttons (accept / decline) -->
+            <div v-if="n.hasActions" class="notif-actions">
+              <cc-icon-button
+                :icon="{ name: 'mark-cross', variant: 'glyph' }"
+                variant="secondary"
+                size="small"
+              />
+              <cc-icon-button
+                :icon="{ name: 'mark-check', variant: 'glyph' }"
+                variant="primary"
+                size="small"
+              />
+            </div>
+            <!-- Comment roll -->
+            <div v-if="n.rollup" class="notif-roll">
+              <cc-avatar :src="n.rollup.avatar" :size="24" click-behavior="none" />
+              <span class="notif-roll-text cc-text-small">{{ n.rollup.text }}</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Footer -->
+      <div class="notif-footer">
+        <div class="notif-footer-left">
+          <cc-icon-button
+            :icon="{ name: 'utility-cogwheel', variant: 'glyph' }"
+            variant="ghost"
+            size="small"
+            tooltip="Notifications Settings"
+          />
+          <cc-icon-button
+            :icon="{ name: 'mark-check-double', variant: 'glyph' }"
+            variant="ghost"
+            size="small"
+            tooltip="Clear All Notifications"
+          />
+        </div>
+        <div class="notif-footer-right">
+          <span class="notif-footer-label cc-text-small">Only show unread</span>
+          <cc-switch v-model="showUnreadOnly" size="small" />
+        </div>
+      </div>
+    </div>
+
+    <main class="page-content" @click="showNotifications = false">
     </main>
   </div>
 </template>
@@ -96,10 +174,10 @@ import {
   CcIcon,
   CcAvatar,
   CcNotificationBadge,
+  CcIconButton,
+  CcSwitch,
 } from '@chesscom/design-system'
-import { onMounted } from 'vue'
-
-defineEmits(['toggle-notifications'])
+import { ref, computed } from 'vue'
 
 const mainLinks = [
   { icon: 'play-white', label: 'Play' },
@@ -108,46 +186,88 @@ const mainLinks = [
   { icon: 'training', label: 'Train' },
 ]
 
-onMounted(() => {
-  const primary = document.querySelector('.nav-primary-text.cc-text-large-bold')
-  const search = document.querySelector('.nav-search-text.cc-text-medium-bold')
-  const badge = document.querySelector('.nav-badge')
-  const primaryStyles = primary ? getComputedStyle(primary) : null
-  const searchStyles = search ? getComputedStyle(search) : null
-  const badgeStyles = badge ? getComputedStyle(badge) : null
+const showNotifications = ref(false)
+const notificationCount = ref(2)
+const activeTab = ref(0)
+const showUnreadOnly = ref(false)
+const tabs = ['Games', 'Social', 'Other']
 
-  // #region agent log
-  fetch('http://127.0.0.1:7249/ingest/3379d450-6ec7-4c93-a22c-9a2a5a4d4e1c',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({runId:'ds-style-debug',hypothesisId:'H1',location:'App.vue:onMounted',message:'design-system stylesheets and utility classes presence',data:{styleSheets:Array.from(document.styleSheets).map((s)=>s.href||'inline').slice(0,30),hasCcTextLargeBold:Array.from(document.styleSheets).some((s)=>{try{return Array.from(s.cssRules||[]).some((r)=>r.cssText?.includes('.cc-text-large-bold'))}catch{return false}}),hasCcNotificationBadge:Array.from(document.styleSheets).some((s)=>{try{return Array.from(s.cssRules||[]).some((r)=>r.cssText?.includes('.cc-notification-badge-component'))}catch{return false}})},timestamp:Date.now()})}).catch(()=>{});
-  // #endregion
+const defaultAvatar = 'https://images.chesscomfiles.com/uploads/v1/user/211790230.6cb341d0.50x50o.6e9fcd3e24e0.png'
 
-  // #region agent log
-  fetch('http://127.0.0.1:7249/ingest/3379d450-6ec7-4c93-a22c-9a2a5a4d4e1c',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({runId:'ds-style-debug',hypothesisId:'H2',location:'App.vue:onMounted',message:'computed typography for target elements',data:{primaryExists:!!primary,primaryFontSize:primaryStyles?.fontSize,primaryFontWeight:primaryStyles?.fontWeight,primaryLineHeight:primaryStyles?.lineHeight,primaryColor:primaryStyles?.color,searchExists:!!search,searchFontSize:searchStyles?.fontSize,searchFontWeight:searchStyles?.fontWeight,searchLineHeight:searchStyles?.lineHeight,searchColor:searchStyles?.color},timestamp:Date.now()})}).catch(()=>{});
-  // #endregion
+const notifications = ref([
+  {
+    id: 1,
+    title: 'MagnusCarlsen',
+    body: 'Wants to play Daily',
+    time: '6h',
+    avatar: defaultAvatar,
+    unread: true,
+    hasActions: true,
+    rollup: null,
+    tab: 0,
+  },
+  {
+    id: 2,
+    title: 'CHESScom',
+    body: 'A new Team Match is starting',
+    time: '23h',
+    avatar: defaultAvatar,
+    unread: true,
+    hasActions: false,
+    rollup: null,
+    tab: 0,
+  },
+  {
+    id: 3,
+    title: 'Barcelona Chess Club',
+    body: 'Someone commented something here',
+    time: '1d',
+    avatar: defaultAvatar,
+    unread: false,
+    hasActions: false,
+    rollup: {
+      avatar: defaultAvatar,
+      text: '+2 more comments',
+    },
+    tab: 1,
+  },
+  {
+    id: 4,
+    title: 'FabianoCaruana',
+    body: 'Notification description, what happens if we have two lines',
+    time: '3d',
+    avatar: defaultAvatar,
+    unread: false,
+    hasActions: false,
+    rollup: null,
+    tab: 0,
+  },
+  {
+    id: 5,
+    title: 'HikaruNakamura',
+    body: 'Notification description here, yes',
+    time: '40d',
+    avatar: defaultAvatar,
+    unread: false,
+    hasActions: false,
+    rollup: null,
+    tab: 0,
+  },
+])
 
-  // #region agent log
-  fetch('http://127.0.0.1:7249/ingest/3379d450-6ec7-4c93-a22c-9a2a5a4d4e1c',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({runId:'ds-style-debug',hypothesisId:'H3',location:'App.vue:onMounted',message:'theme + token + scale state',data:{htmlFontSize:getComputedStyle(document.documentElement).fontSize,bodyHasDarkMode:document.body.classList.contains('dark-mode'),colorTextBolder:getComputedStyle(document.documentElement).getPropertyValue('--color-text-bolder').trim(),colorTextDefault:getComputedStyle(document.documentElement).getPropertyValue('--color-text-default').trim(),colorTextSubtle:getComputedStyle(document.documentElement).getPropertyValue('--color-text-subtle').trim(),navBg:getComputedStyle(document.querySelector('.nav-component')||document.body).backgroundColor,badgeExists:!!badge,badgeHeight:badgeStyles?.height,badgeMinWidth:badgeStyles?.minWidth,badgePadding:badgeStyles?.padding,badgeRadius:badgeStyles?.borderRadius},timestamp:Date.now()})}).catch(()=>{});
-  // #endregion
-
-  // #region agent log
-  fetch('http://127.0.0.1:7249/ingest/3379d450-6ec7-4c93-a22c-9a2a5a4d4e1c',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({runId:'ds-style-debug',hypothesisId:'H5',location:'App.vue:onMounted',message:'zoom + css variable resolution on actual elements',data:{devicePixelRatio:window.devicePixelRatio,visualViewportScale:window.visualViewport?.scale||null,browserZoomEstimated:Math.round((window.outerWidth/window.innerWidth)*100),rootTextBolder:getComputedStyle(document.documentElement).getPropertyValue('--color-text-bolder').trim(),bodyTextBolder:getComputedStyle(document.body).getPropertyValue('--color-text-bolder').trim(),primaryResolvedColor:primaryStyles?.color,freeTrialResolvedColor:getComputedStyle(document.querySelector('.nav-free-trial-text')||document.body).color,searchGap:getComputedStyle(document.querySelector('.nav-search')||document.body).gap},timestamp:Date.now()})}).catch(()=>{});
-  // #endregion
-
-  const htmlStyles = getComputedStyle(document.documentElement)
-  const bodyStyles = getComputedStyle(document.body)
-  const appEl = document.querySelector('.app')
-  const navEl = document.querySelector('.nav-component')
-  const appRect = appEl ? appEl.getBoundingClientRect() : null
-  const navRect = navEl ? navEl.getBoundingClientRect() : null
-  const bodyComputed = getComputedStyle(document.body)
-
-  // #region agent log
-  fetch('http://127.0.0.1:7249/ingest/3379d450-6ec7-4c93-a22c-9a2a5a4d4e1c',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({runId:'ds-style-debug',hypothesisId:'H6',location:'App.vue:onMounted',message:'layout scaling and container transforms',data:{innerWidth:window.innerWidth,innerHeight:window.innerHeight,outerWidth:window.outerWidth,outerHeight:window.outerHeight,htmlZoom:htmlStyles.zoom||'',bodyZoom:bodyStyles.zoom||'',htmlTransform:htmlStyles.transform||'none',bodyTransform:bodyStyles.transform||'none',htmlFontSize:htmlStyles.fontSize,bodyFontSize:bodyStyles.fontSize,appRect:appRect?{width:Math.round(appRect.width),height:Math.round(appRect.height)}:null,navRect:navRect?{width:Math.round(navRect.width),height:Math.round(navRect.height)}:null,navComputedWidth:navEl?getComputedStyle(navEl).width:null,primaryRect:primary?{width:Math.round(primary.getBoundingClientRect().width),height:Math.round(primary.getBoundingClientRect().height)}:null,searchRect:search?{width:Math.round(search.getBoundingClientRect().width),height:Math.round(search.getBoundingClientRect().height)}:null},timestamp:Date.now()})}).catch(()=>{});
-  // #endregion
-
-  // #region agent log
-  fetch('http://127.0.0.1:7249/ingest/3379d450-6ec7-4c93-a22c-9a2a5a4d4e1c',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({runId:'ds-style-debug',hypothesisId:'H7',location:'App.vue:onMounted',message:'font family resolution for DS text utilities',data:{fontFamilySystemVar:htmlStyles.getPropertyValue('--font-family-system').trim(),fontFamilyHeadingVar:htmlStyles.getPropertyValue('--font-family-heading').trim(),bodyFontFamily:bodyComputed.fontFamily,primaryFontFamily:primaryStyles?.fontFamily,searchFontFamily:searchStyles?.fontFamily,primaryClasses:primary?.className||'',searchClasses:search?.className||''},timestamp:Date.now()})}).catch(()=>{});
-  // #endregion
+const filteredNotifications = computed(() => {
+  if (showUnreadOnly.value) {
+    return notifications.value.filter(n => n.unread)
+  }
+  return notifications.value
 })
+
+function toggleNotifications() {
+  showNotifications.value = !showNotifications.value
+  if (showNotifications.value) {
+    notificationCount.value = 0
+  }
+}
 </script>
 
 <style>
@@ -445,5 +565,192 @@ body.dark-mode {
 .page-content {
   flex: 1;
   background: var(--color-bg-surface, #262421);
+}
+
+/* ======== Notifications Popover ======== */
+
+.notif-popover {
+  position: fixed;
+  left: 8px;
+  bottom: 64px;
+  width: 300px;
+  height: 440px;
+  background: var(--color-bg-opaque, #262421);
+  border: 1px solid var(--color-border-default, rgba(255,255,255,0.1));
+  border-radius: var(--radius-l, 5px);
+  box-shadow: 0px 2px 4px 0px rgba(0,0,0,0.3);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  z-index: 100;
+}
+
+/* -- Tabs -- */
+
+.notif-tabs {
+  display: flex;
+  flex-shrink: 0;
+  width: 100%;
+}
+
+.notif-tab {
+  flex: 1;
+  height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: none;
+  border: none;
+  border-bottom: 1px solid var(--color-border-default, rgba(255,255,255,0.1));
+  color: var(--color-text-default, rgba(255,255,255,0.72));
+  cursor: pointer;
+  font-family: inherit;
+  padding: 0;
+}
+
+.notif-tab-active {
+  border-bottom: 3px solid rgba(255,255,255,0.72);
+  color: var(--color-text-bolder, rgba(255,255,255,0.85));
+}
+
+/* -- Notification List -- */
+
+.notif-list {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: var(--space-8, 8px);
+}
+
+.notif-item {
+  display: flex;
+  gap: var(--space-8, 8px);
+  align-items: flex-start;
+  padding: var(--space-8, 8px);
+  border-radius: var(--radius-l, 5px);
+}
+
+.notif-item-detailed {
+  gap: var(--space-12, 12px);
+}
+
+.notif-item:hover {
+  background: var(--color-bg-subtlest, rgba(255,255,255,0.02));
+}
+
+/* -- Notification Content -- */
+
+.notif-content {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-8, 8px);
+  flex: 1;
+  min-width: 0;
+}
+
+.notif-text-block {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  width: 100%;
+}
+
+.notif-header {
+  display: flex;
+  gap: 8px;
+  align-items: baseline;
+  width: 100%;
+}
+
+.notif-username {
+  flex: 1;
+  min-width: 0;
+  color: var(--color-text-bolder, rgba(255,255,255,0.85));
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.notif-time {
+  flex-shrink: 0;
+  color: var(--color-text-subtle, rgba(255,255,255,0.5));
+}
+
+.notif-body-row {
+  display: flex;
+  gap: var(--space-4, 4px);
+  align-items: baseline;
+  width: 100%;
+}
+
+.notif-body {
+  flex: 1;
+  min-width: 0;
+  color: var(--color-text-subtle, rgba(255,255,255,0.5));
+}
+
+.notif-dot {
+  flex-shrink: 0;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--color-bg-danger, #E5483F);
+}
+
+/* -- Action Buttons -- */
+
+.notif-actions {
+  display: flex;
+  gap: var(--space-8, 8px);
+  align-items: center;
+}
+
+/* -- Comment Roll -- */
+
+.notif-roll {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  padding: 4px;
+  background: var(--color-bg-subtlest, rgba(255,255,255,0.02));
+  border-radius: 3px;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.notif-roll-text {
+  flex: 1;
+  min-width: 0;
+  color: var(--color-text-subtle, rgba(255,255,255,0.5));
+}
+
+/* -- Footer -- */
+
+.notif-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 48px;
+  flex-shrink: 0;
+  padding: 0 var(--space-8, 8px);
+  border-top: 1px solid var(--color-border-default, rgba(255,255,255,0.1));
+  overflow: hidden;
+}
+
+.notif-footer-left {
+  display: flex;
+  align-items: center;
+}
+
+.notif-footer-right {
+  display: flex;
+  align-items: center;
+  gap: var(--space-8, 8px);
+  padding: 0 var(--space-8, 8px);
+}
+
+.notif-footer-label {
+  color: var(--color-text-default, rgba(255,255,255,0.72));
+  white-space: nowrap;
 }
 </style>
