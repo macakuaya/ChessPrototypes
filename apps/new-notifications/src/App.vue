@@ -272,14 +272,14 @@ function buildCategoryData() {
     demo: [
       { id: 'demo-1', type: 'Game Seek (Daily)', title: 'MagnusCarlsen', body: 'Wants to play Daily', time: '6h', avatar: avatars.magnus, unread: true, hasActions: true, rollup: null },
       { id: 'demo-2', type: 'Team Match', title: 'CHESScom', body: 'A new Team Match is starting', time: '23h', avatar: avatars.chesscom, unread: true, hasActions: false, rollup: null },
-      { id: 'demo-3', type: 'New Comment (Rollup)', title: 'Barcelona Chess Club', body: 'Someone commented something here', time: '1d', avatar: avatars.barcelona, unread: false, hasActions: false,
+      { id: 'demo-3', type: 'New Comment (Rollup)', title: 'Barcelona Chess Club', body: '3 new comments', time: '1d', avatar: avatars.barcelona, unread: false, hasActions: false,
         rollup: { avatar: avatars.barcelona, text: '+2 more comments', expanded: false, comments: [
           { id: 'c1', avatar: avatars.gotham, username: 'GothamChess', body: 'Great game analysis! The knight sacrifice on move 23 was brilliant.' },
           { id: 'c2', avatar: avatars.botez, username: 'BotezLive', body: 'Our team should try this opening in the next match.' },
         ]},
       },
-      { id: 'demo-4', type: 'Game Notification', title: 'FabianoCaruana', body: 'Notification description, what happens if we have two lines', time: '3d', avatar: avatars.fabiano, unread: false, hasActions: false, rollup: null },
-      { id: 'demo-5', type: 'Game Notification', title: 'HikaruNakamura', body: 'Notification description here, yes', time: '40d', avatar: avatars.hikaru, unread: false, hasActions: false, rollup: null },
+      { id: 'demo-4', type: 'Your Move (Daily)', title: "It's your move!", body: 'FabianoCaruana played Nxe5.', time: '3d', avatar: avatars.fabiano, unread: false, hasActions: false, rollup: null },
+      { id: 'demo-5', type: 'Game Finished', title: 'You won!', body: 'You beat HikaruNakamura on time.', time: '40d', avatar: avatars.hikaru, unread: false, hasActions: false, rollup: null },
     ],
 
     clubs: [
