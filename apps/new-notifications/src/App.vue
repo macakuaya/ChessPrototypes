@@ -95,7 +95,7 @@
     </nav>
 
     <!-- Notifications Popover -->
-    <div v-if="showNotifications" class="notif-popover" @click.stop>
+    <div v-show="showNotifications" class="notif-popover" @click.stop>
       <!-- Notification List -->
       <div class="notif-list">
         <div
@@ -104,7 +104,7 @@
           class="notif-item"
           :class="{ 'notif-item-detailed': n.hasActions || n.rollup }"
         >
-          <cc-avatar :src="n.avatar" :size="32" click-behavior="none" />
+          <cc-avatar :src="n.avatar" :size="32" click-behavior="none" :is-lazy-loading="false" />
           <div class="notif-content">
             <div class="notif-text-block">
               <div class="notif-header">
@@ -133,10 +133,29 @@
               />
             </div>
             <!-- Comment roll -->
-            <div v-if="n.rollup" class="notif-roll">
-              <cc-avatar :src="n.rollup.avatar" :size="24" click-behavior="none" />
-              <span class="notif-roll-text cc-text-small">{{ n.rollup.text }}</span>
-            </div>
+            <template v-if="n.rollup">
+              <div
+                v-show="!n.rollup.expanded"
+                class="notif-roll"
+                @click.stop="n.rollup.expanded = true"
+              >
+                <cc-avatar :src="n.rollup.avatar" :size="24" click-behavior="none" :is-lazy-loading="false" />
+                <span class="notif-roll-text cc-text-small">{{ n.rollup.text }}</span>
+              </div>
+              <div v-show="n.rollup.expanded" class="notif-comments">
+                <div
+                  v-for="c in n.rollup.comments"
+                  :key="c.id"
+                  class="notif-comment"
+                >
+                  <cc-avatar :src="c.avatar" :size="24" click-behavior="none" :is-lazy-loading="false" />
+                  <div class="notif-comment-content">
+                    <span class="notif-comment-user cc-text-medium-bold">{{ c.username }}</span>
+                    <span class="notif-comment-body cc-text-small">{{ c.body }}</span>
+                  </div>
+                </div>
+              </div>
+            </template>
           </div>
         </div>
       </div>
@@ -158,7 +177,7 @@
           />
         </div>
         <div class="notif-footer-right">
-          <span class="notif-footer-label cc-text-small">Only show unread</span>
+          <span class="notif-footer-label cc-text-small-bold">Only show unread</span>
           <cc-switch v-model="showUnreadOnly" size="small" />
         </div>
       </div>
@@ -192,7 +211,15 @@ const activeTab = ref(0)
 const showUnreadOnly = ref(false)
 const tabs = ['Games', 'Social', 'Other']
 
-const defaultAvatar = 'https://images.chesscomfiles.com/uploads/v1/user/211790230.6cb341d0.50x50o.6e9fcd3e24e0.png'
+const avatars = {
+  magnus: 'https://images.chesscomfiles.com/uploads/v1/user/3889224.121e2094.200x200o.361c2f8a59c2.jpg',
+  chesscom: 'https://images.chesscomfiles.com/uploads/v1/user/33.862d5ff1.200x200o.0fc116e99993.png',
+  barcelona: 'https://images.chesscomfiles.com/uploads/v1/group/898989.734243c5.50x50o.b1beed728fce.png',
+  gotham: 'https://images.chesscomfiles.com/uploads/v1/user/33945736.eb0c3771.200x200o.cf06060d2143.png',
+  botez: 'https://images.chesscomfiles.com/uploads/v1/user/28583276.401697ff.200x200o.152b758db93a.jpg',
+  fabiano: 'https://images.chesscomfiles.com/uploads/v1/user/11177810.9dfc8d31.200x200o.9a9eccebc07c.png',
+  hikaru: 'https://images.chesscomfiles.com/uploads/v1/user/15448422.88c010c1.200x200o.3c5619f5441e.png',
+}
 
 const notifications = ref([
   {
@@ -200,7 +227,7 @@ const notifications = ref([
     title: 'MagnusCarlsen',
     body: 'Wants to play Daily',
     time: '6h',
-    avatar: defaultAvatar,
+    avatar: avatars.magnus,
     unread: true,
     hasActions: true,
     rollup: null,
@@ -211,7 +238,7 @@ const notifications = ref([
     title: 'CHESScom',
     body: 'A new Team Match is starting',
     time: '23h',
-    avatar: defaultAvatar,
+    avatar: avatars.chesscom,
     unread: true,
     hasActions: false,
     rollup: null,
@@ -222,12 +249,17 @@ const notifications = ref([
     title: 'Barcelona Chess Club',
     body: 'Someone commented something here',
     time: '1d',
-    avatar: defaultAvatar,
+    avatar: avatars.barcelona,
     unread: false,
     hasActions: false,
     rollup: {
-      avatar: defaultAvatar,
+      avatar: avatars.barcelona,
       text: '+2 more comments',
+      expanded: false,
+      comments: [
+        { id: 'c1', avatar: avatars.gotham, username: 'GothamChess', body: 'Great game analysis! The knight sacrifice on move 23 was brilliant.' },
+        { id: 'c2', avatar: avatars.botez, username: 'BotezLive', body: 'Our team should try this opening in the next match.' },
+      ],
     },
     tab: 1,
   },
@@ -236,7 +268,7 @@ const notifications = ref([
     title: 'FabianoCaruana',
     body: 'Notification description, what happens if we have two lines',
     time: '3d',
-    avatar: defaultAvatar,
+    avatar: avatars.fabiano,
     unread: false,
     hasActions: false,
     rollup: null,
@@ -247,7 +279,7 @@ const notifications = ref([
     title: 'HikaruNakamura',
     body: 'Notification description here, yes',
     time: '40d',
-    avatar: defaultAvatar,
+    avatar: avatars.hikaru,
     unread: false,
     hasActions: false,
     rollup: null,
@@ -716,11 +748,49 @@ body.dark-mode {
   border-radius: 3px;
   width: 100%;
   box-sizing: border-box;
+  cursor: pointer;
+}
+
+.notif-roll:hover {
+  background: var(--color-bg-subtle, rgba(255,255,255,0.1));
 }
 
 .notif-roll-text {
   flex: 1;
   min-width: 0;
+  color: var(--color-text-subtle, rgba(255,255,255,0.5));
+}
+
+.notif-comments {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4, 4px);
+  width: 100%;
+}
+
+.notif-comment {
+  display: flex;
+  gap: var(--space-8, 8px);
+  align-items: flex-start;
+  padding: var(--space-4, 4px);
+  background: var(--color-bg-subtlest, rgba(255,255,255,0.02));
+  border-radius: 3px;
+}
+
+.notif-comment-content {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1;
+  min-width: 0;
+}
+
+.notif-comment-user {
+  color: var(--color-text-bolder, rgba(255,255,255,0.85));
+  line-height: 24px;
+}
+
+.notif-comment-body {
   color: var(--color-text-subtle, rgba(255,255,255,0.5));
 }
 

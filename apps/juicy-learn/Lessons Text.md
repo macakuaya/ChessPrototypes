@@ -172,9 +172,7 @@
 
 ---
 
-## Summary
-
-| Q# | FEN | Move | Theme |
+## Summary| Q# | FEN | Move | Theme |
 |----|-----|------|-------|
 | 1 | `6k1/8/4b3/8/4Rq2/8/6P1/6K1 w` | Rxf4 | Queen vs Bishop (9 vs 3) |
 | 2 | `6k1/6p1/n6p/5r2/8/P2B4/1PP5/2K5 w` | Bxf5 | Rook vs Knight (5 vs 3) |
