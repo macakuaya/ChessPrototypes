@@ -64,6 +64,17 @@ jobs:
         working-directory: apps/new-daily-puzzle
         run: npm run build
 
+      # Build New Notifications app
+      - name: Install dependencies (new-notifications)
+        working-directory: apps/new-notifications
+        run: npm ci
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: Build (new-notifications)
+        working-directory: apps/new-notifications
+        run: npm run build
+
       # Combine all builds into single dist folder
       - name: Prepare deployment folder
         run: |
@@ -71,6 +82,7 @@ jobs:
           cp -r apps/skills/dist dist/skills
           cp -r apps/juicy-learn/dist dist/juicy-learn
           cp -r apps/new-daily-puzzle/dist dist/new-daily-puzzle
+          cp -r apps/new-notifications/dist dist/new-notifications
           cp -r landing/* dist/
 
       - name: Upload artifact
