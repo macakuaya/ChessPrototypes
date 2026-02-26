@@ -1329,7 +1329,7 @@ onUnmounted(() => {
                 v-for="i in puzzle.results.totalLives" 
                 :key="i"
                 :name="i <= lives ? 'emote-heart-fill' : 'emote-heart-broken'" 
-                :size="24" 
+                :size="32" 
                 class="heart-icon"
                 :class="{ 'heart-lost': i > lives }"
               />
