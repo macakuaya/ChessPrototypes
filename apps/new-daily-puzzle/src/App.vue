@@ -108,6 +108,14 @@ const streak = ref(0)
 const selectedSquare = ref(null)
 const lastMove = ref(null) // { from, to }
 const heartsEntrance = ref(false) // Triggers staggered heart + timer entrance animation
+const showVideoCard = ref(false) // Delayed entrance for video card after solved bubble
+watch(() => puzzlePhase.value, (phase) => {
+  if (phase === 'solved') {
+    setTimeout(() => { showVideoCard.value = true }, 600)
+  } else {
+    showVideoCard.value = false
+  }
+})
 
 // Hint state
 const hintHighlightSquare = ref(null)  // square to highlight with blue overlay (piece to move)
@@ -115,6 +123,9 @@ const lastCorrectMessage = ref('')     // Persists the correct message through c
 const lastCorrectNotation = ref('')    // Persists the move notation through computer-moving/awaiting
 const showMoveArrow = ref(false)       // whether the hint arrow is visible
 const checkpointPieces = ref([]) // Saved board state for retry after wrong move
+const failCountForCurrentMove = ref(0) // How many wrong attempts on the current move
+const slidingPiece = ref(null) // { type, startX, startY, endX, endY, hideSquare } for slide-back animation
+let softFailTimeout = null
 
 // Replay navigation (solved state)
 const replayPly = ref(-1) // -1 means not replaying, 0 = initial, 1..n = after move n
@@ -275,6 +286,9 @@ const coachHeaderText = computed(() => {
   if (puzzlePhase.value === 'solved') {
     return 'Solved!'
   }
+  if (moveState.value === 'soft-hint' && softMoveUsed.value) return 'Solution'
+  if (moveState.value === 'soft-hint') return 'Hint'
+  if (moveState.value === 'soft-solution') return 'Solution'
   return '' // Let CoachBubble derive from state
 })
 
@@ -294,6 +308,18 @@ const coachMessage = computed(() => {
       lastCorrectMessage.value = ''
       if (lives.value === 0) return "Out of hearts! See the solution or keep trying on your own."
       return "There's a better move, try again."
+    case 'soft-hint': {
+      if (softMoveUsed.value) return 'This is the correct move'
+      const expected = currentExpectedMove.value
+      if (expected) {
+        const pieceNames = { 'K': 'king', 'Q': 'queen', 'R': 'rook', 'B': 'bishop', 'N': 'knight', 'P': 'pawn' }
+        const name = pieceNames[expected.piece?.toUpperCase()] || 'piece'
+        return `Look at the ${name} on ${expected.from}`
+      }
+      return puzzle.hint
+    }
+    case 'soft-solution':
+      return 'This is the correct move'
     case 'hint':
       return puzzle.hint
     case 'correct': {
@@ -319,6 +345,8 @@ const coachState = computed(() => {
   switch (moveState.value) {
     case 'wrong': return 'incorrect'
     case 'correct': return 'correct'
+    case 'soft-hint': return 'white-to-move'
+    case 'soft-solution': return 'white-to-move'
     case 'computer-moving': return lastCorrectMessage.value ? 'correct' : 'black-to-move'
     case 'awaiting': return lastCorrectMessage.value ? 'correct' : 'white-to-move'
     default: return 'white-to-move'
@@ -338,6 +366,9 @@ const moveNotation = computed(() => {
   if (moveState.value === 'computer-moving' || moveState.value === 'awaiting') {
     return lastCorrectNotation.value || ''
   }
+  if (moveState.value === 'soft-hint' || moveState.value === 'soft-solution') {
+    return ''
+  }
   if (moveState.value === 'wrong') {
     lastCorrectNotation.value = ''
     const pieceLetters = { 'wr': 'R', 'wn': 'N', 'wb': 'B', 'wq': 'Q', 'wk': 'K', 'br': 'R', 'bn': 'N', 'bb': 'B', 'bq': 'Q', 'bk': 'K' }
@@ -353,6 +384,7 @@ let coachBubblePendingShow = false
 let solutionPlaying = false
 
 let prevCoachSnapshot = ''
+let skipNextCoachAnimation = false
 watch([coachMessage, coachHeaderText, coachState, moveNotation], (newVals, oldVals) => {
   if (solutionPlaying) return
   if (replayPly.value !== -1) return // Suppress coach during replay navigation
@@ -370,6 +402,12 @@ watch([coachMessage, coachHeaderText, coachState, moveNotation], (newVals, oldVa
   const snapshot = newVals.join('|')
   if (snapshot === prevCoachSnapshot) return
   prevCoachSnapshot = snapshot
+
+  // Skip fade animation when flagged (e.g. soft-hint → solution transition)
+  if (skipNextCoachAnimation) {
+    skipNextCoachAnimation = false
+    return
+  }
 
   if (showCoachBubble.value) {
     coachBubblePendingShow = true
@@ -426,6 +464,32 @@ const pieces = ref([])
 const BOARD_SIZE = 680 // pixels
 const SQUARE_SIZE = BOARD_SIZE / 8
 const GAP_SIZE = 32 // gap between board and panel (3.2rem)
+
+// Convert square notation to pixel position on the board (top-left of square)
+const squareToPixelPos = (square) => {
+  const file = square.charCodeAt(0) - 'a'.charCodeAt(0)
+  const rank = parseInt(square[1]) - 1
+  return { x: file * SQUARE_SIZE, y: (7 - rank) * SQUARE_SIZE }
+}
+
+// Check if piece is being slid back (to hide it from grid during animation)
+const isPieceSliding = (square) => {
+  return slidingPiece.value && slidingPiece.value.hideSquare === square
+}
+
+// Restore board without changing moveState or hint state (for soft-fail flow)
+const softRestoreBoard = () => {
+  pieces.value = JSON.parse(JSON.stringify(checkpointPieces.value))
+  selectedSquare.value = null
+  lastMove.value = null
+  checkmateEffectSquares.value = {}
+  checkmateEffectIcons.value = {}
+  checkmateEffectLabels.value = {}
+  classificationSquare.value = null
+  classificationType.value = null
+  hintHighlightSquare.value = null
+  showMoveArrow.value = false
+}
 
 // Check if square has hint highlight (blue overlay on piece to move)
 const hasHintHighlight = (square) => hintHighlightSquare.value === square
@@ -561,6 +625,8 @@ const restoreCheckpoint = () => {
 
 // Load initial puzzle position
 const loadPuzzle = () => {
+  if (softFailTimeout) { clearTimeout(softFailTimeout); softFailTimeout = null }
+  slidingPiece.value = null
   pieces.value = parseFEN(puzzle.initialFEN)
   saveCheckpoint()
   currentMoveIndex.value = 0
@@ -579,6 +645,9 @@ const loadPuzzle = () => {
   lastCorrectNotation.value = ''
   classificationSquare.value = null
   classificationType.value = null
+  failCountForCurrentMove.value = 0
+  softMoveUsed.value = false
+  showVideoCard.value = false
 }
 
 // Reset the puzzle back to the intro screen
@@ -639,7 +708,7 @@ const isEdgeRight = (square) => square.includes('h')
 const handleSquareClick = (square) => {
   // Only allow moves during playing phase, when awaiting input
   if (puzzlePhase.value !== 'playing') return
-  if (moveState.value === 'correct' || moveState.value === 'computer-moving') return
+  if (moveState.value === 'correct' || moveState.value === 'computer-moving' || moveState.value === 'wrong') return
   
   const piece = getPieceOnSquare(square)
   
@@ -860,11 +929,13 @@ const scheduleNextMove = (afterDelay = 3800) => {
         setTimeout(() => {
           currentMoveIndex.value = nextIndex + 1
           moveState.value = 'awaiting'
+          failCountForCurrentMove.value = 0
           saveCheckpoint()
         }, 600)
       }, 800) // Delay before computer plays
     } else {
       moveState.value = 'awaiting'
+      failCountForCurrentMove.value = 0
       saveCheckpoint()
     }
   }, afterDelay)
@@ -873,7 +944,7 @@ const scheduleNextMove = (afterDelay = 3800) => {
 // Try to make a move (used by both click and drag)
 const tryMove = (from, to) => {
   if (puzzlePhase.value !== 'playing') return false
-  if (moveState.value === 'correct' || moveState.value === 'computer-moving') return false
+  if (moveState.value === 'correct' || moveState.value === 'computer-moving' || moveState.value === 'wrong') return false
   classificationSquare.value = null
   classificationType.value = null
   
@@ -956,7 +1027,52 @@ const tryMove = (from, to) => {
     // Reset streak, lose a life, and set wrong state
     streak.value = 0
     loseLife()
+    failCountForCurrentMove.value++
     moveState.value = 'wrong'
+    
+    // Soft fail: auto-restore after 2500ms with slide-back (only if lives remain)
+    if (lives.value > 0) {
+      const wrongTo = to
+      const originalFrom = from
+      if (softFailTimeout) clearTimeout(softFailTimeout)
+      softFailTimeout = setTimeout(() => {
+        softFailTimeout = null
+        const pieceAtWrong = getPieceOnSquare(wrongTo)
+        if (!pieceAtWrong) return
+        
+        // Start slide-back animation
+        const fromPos = squareToPixelPos(wrongTo)
+        const toPos = squareToPixelPos(originalFrom)
+        slidingPiece.value = {
+          type: pieceAtWrong.type,
+          startX: fromPos.x,
+          startY: fromPos.y,
+          endX: toPos.x,
+          endY: toPos.y,
+          hideSquare: wrongTo,
+        }
+        
+        // After slide animation completes, restore board and show hints
+        setTimeout(() => {
+          slidingPiece.value = null
+          softRestoreBoard()
+          
+          const expected = currentExpectedMove.value
+          if (expected) {
+            hintHighlightSquare.value = expected.from
+          }
+          
+          if (failCountForCurrentMove.value >= 2) {
+            showMoveArrow.value = true
+            softMoveUsed.value = true
+          } else {
+            softMoveUsed.value = false
+          }
+          moveState.value = 'soft-hint'
+        }, 300)
+      }, 2500)
+    }
+    
     return false
   }
 }
@@ -966,7 +1082,7 @@ const tryMove = (from, to) => {
 // ============================================
 const handleDragStart = (event, square) => {
   if (puzzlePhase.value !== 'playing') return
-  if (moveState.value === 'correct' || moveState.value === 'computer-moving') return
+  if (moveState.value === 'correct' || moveState.value === 'computer-moving' || moveState.value === 'wrong') return
   
   const piece = getPieceOnSquare(square)
   if (!piece || !piece.type.startsWith('w')) return
@@ -1110,6 +1226,72 @@ const handleShowMoveArrow = () => {
   showMoveArrow.value = true
 }
 
+const softMoveUsed = ref(false)
+
+const handleSoftMove = () => {
+  if (softMoveUsed.value) return
+  // Cancel pending auto-restore if user clicks before 2500ms
+  if (softFailTimeout) { clearTimeout(softFailTimeout); softFailTimeout = null }
+  if (moveState.value === 'wrong') {
+    slidingPiece.value = null
+    softRestoreBoard()
+    const expected = currentExpectedMove.value
+    if (expected) hintHighlightSquare.value = expected.from
+    moveState.value = 'soft-hint'
+  }
+  loseLife()
+  showMoveArrow.value = true
+  skipNextCoachAnimation = true
+  softMoveUsed.value = true
+}
+
+const handleSoftSolution = () => {
+  // Cancel pending auto-restore if user clicks before 2500ms
+  if (softFailTimeout) { clearTimeout(softFailTimeout); softFailTimeout = null }
+  if (moveState.value === 'wrong' || moveState.value === 'soft-solution') {
+    slidingPiece.value = null
+    softRestoreBoard()
+  }
+  
+  loseLife()
+  
+  const expected = currentExpectedMove.value
+  if (!expected) return
+  
+  hintHighlightSquare.value = null
+  showMoveArrow.value = false
+  
+  const isCapture = getPieceOnSquare(expected.to) !== undefined
+  makeMove(expected.from, expected.to)
+  lastMove.value = { from: expected.from, to: expected.to }
+  moveState.value = 'correct'
+  classificationSquare.value = expected.to
+  classificationType.value = 'correct'
+  failCountForCurrentMove.value = 0
+  
+  playPuzzleSound('correct')
+  if (isCapture) {
+    playSound('capture')
+  } else {
+    playSound('move')
+  }
+  
+  displayedProgress.value = actualProgress.value
+  displayedStreak.value = streak.value
+  
+  if (expected.isCheckmate) {
+    triggerCheckmateAnimation(expected.kingSquare, true, () => {
+      setTimeout(() => {
+        puzzlePhase.value = 'solved'
+        stopTimer()
+        playPuzzleSound('puzzleSolved')
+      }, 200)
+    })
+  } else {
+    scheduleNextMove(1500)
+  }
+}
+
 const handleRetry = () => {
   restoreCheckpoint()
   displayedProgress.value = actualProgress.value
@@ -1147,8 +1329,9 @@ onUnmounted(() => {
   document.removeEventListener('mouseup', handleDragEnd)
   document.removeEventListener('touchmove', handleDragMove)
   document.removeEventListener('touchend', handleDragEnd)
-  // Clean up timer
+  // Clean up timer and soft-fail timeout
   stopTimer()
+  if (softFailTimeout) { clearTimeout(softFailTimeout); softFailTimeout = null }
 })
 
 
@@ -1218,7 +1401,7 @@ onUnmounted(() => {
 
               <!-- Piece -->
               <img 
-                v-if="getPieceOnSquare(square) && !isPieceDragged(square)" 
+                v-if="getPieceOnSquare(square) && !isPieceDragged(square) && !isPieceSliding(square)" 
                 class="piece"
                 :class="{ 'draggable': getPieceOnSquare(square)?.type.startsWith('w') }"
                 :src="getPieceImage(getPieceOnSquare(square))"
@@ -1250,6 +1433,19 @@ onUnmounted(() => {
             </svg>
 
           </div>
+
+          <!-- Sliding piece (animates back to original square after wrong move) -->
+          <img
+            v-if="slidingPiece"
+            class="sliding-piece"
+            :src="`https://www.chess.com/chess-themes/pieces/neo/300/${slidingPiece.type}.png`"
+            :style="{
+              left: slidingPiece.endX + 'px',
+              top: slidingPiece.endY + 'px',
+              '--slide-from-x': (slidingPiece.startX - slidingPiece.endX) + 'px',
+              '--slide-from-y': (slidingPiece.startY - slidingPiece.endY) + 'px',
+            }"
+          />
           
         </div>
         
@@ -1349,8 +1545,9 @@ onUnmounted(() => {
             </div>
           </div>
 
-          <!-- Video Explanation Card (solved state) -->
-          <div v-if="puzzlePhase === 'solved'" class="video-card">
+          <!-- Video Explanation Card (delayed after solved bubble settles) -->
+          <Transition name="video-card-fade">
+          <div v-if="showVideoCard" class="video-card">
             <img 
               class="video-card-avatar" 
               :src="fionaAvatarUrl" 
@@ -1365,6 +1562,7 @@ onUnmounted(() => {
               Watch Video
             </CcButton>
           </div>
+          </Transition>
         </div>
 
         <!-- Footer -->
@@ -1401,15 +1599,36 @@ onUnmounted(() => {
                 Share
               </CcButton>
             </template>
-            <!-- Wrong move: Retry (has lives) / Solution + Keep Going (out of lives) -->
-            <template v-else-if="moveState === 'wrong'">
-              <template v-if="lives > 0">
-                <CcButton variant="danger" size="large" :icon="{ name: 'arrow-spin-undo' }" @click="handleRetry">Retry</CcButton>
-              </template>
-              <template v-else>
-                <CcButton variant="secondary" size="large" :icon="{ name: 'circle-fill-info' }" @click="handleSolution">Solution</CcButton>
-                <CcButton variant="primary" size="large" :icon="{ name: 'arrow-line-right' }" @click="handleRetry">Keep Going</CcButton>
-              </template>
+            <!-- Wrong move with lives: Soft fail buttons (Move / Solution) -->
+            <template v-else-if="moveState === 'wrong' && lives > 0">
+              <CcButton
+                v-if="failCountForCurrentMove >= 2"
+                variant="secondary" size="large"
+                :icon="{ name: 'tool-magnifier-check' }"
+                @click="handleSoftSolution"
+              >Solution</CcButton>
+              <CcButton
+                v-else
+                variant="secondary" size="large"
+                :icon="{ name: 'circle-fill-question' }"
+                @click="handleSoftMove"
+              >Move</CcButton>
+            </template>
+            <!-- Wrong move with no lives: existing Solution + Keep Going -->
+            <template v-else-if="moveState === 'wrong' && lives === 0">
+              <CcButton variant="secondary" size="large" :icon="{ name: 'circle-fill-info' }" @click="handleSolution">Solution</CcButton>
+              <CcButton variant="primary" size="large" :icon="{ name: 'arrow-line-right' }" @click="handleRetry">Keep Going</CcButton>
+            </template>
+            <!-- Soft-hint: Move button (disabled once used) -->
+            <template v-else-if="moveState === 'soft-hint'">
+              <CcButton
+                variant="secondary" size="large"
+                :icon="{ name: 'circle-fill-question' }"
+                :disabled="softMoveUsed"
+                class="soft-move-btn"
+                :class="{ 'soft-move-btn-disabled': softMoveUsed }"
+                @click="handleSoftMove"
+              >Move</CcButton>
             </template>
             <!-- Awaiting / hint / correct / computer-moving: Hint → Move flow -->
             <template v-else>
@@ -1635,6 +1854,24 @@ body {
   filter: drop-shadow(0 4px 8px rgba(0, 0, 0, 0.3));
 }
 
+.sliding-piece {
+  position: absolute;
+  width: 8.5rem;
+  height: 8.5rem;
+  pointer-events: none;
+  z-index: 10;
+  animation: slide-back 300ms cubic-bezier(0.2, 0, 0, 1) forwards;
+}
+
+@keyframes slide-back {
+  from {
+    transform: translate(var(--slide-from-x), var(--slide-from-y));
+  }
+  to {
+    transform: translate(0, 0);
+  }
+}
+
 .coord {
   position: absolute;
   font-family: var(--font-family-heading, 'Chess Sans', sans-serif);
@@ -1802,6 +2039,14 @@ body {
   font-feature-settings: 'lnum' 1, 'tnum' 1;
 }
 
+/* Video card fade-in transition */
+.video-card-fade-enter-active {
+  transition: opacity var(--motion-steady, 300ms) var(--motion-ease-out-gentle, cubic-bezier(0, 0, 0.2, 1));
+}
+.video-card-fade-enter-from {
+  opacity: 0;
+}
+
 /* Video Explanation Card */
 .video-card {
   display: flex;
@@ -1950,6 +2195,11 @@ body {
 .action-buttons > :deep(button) {
   flex: 1;
   max-height: 4.8rem;
+}
+
+.soft-move-btn-disabled :deep(button) {
+  opacity: 0.4;
+  pointer-events: none;
 }
 
 .action-buttons .complete-button :deep(button),
