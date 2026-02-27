@@ -2064,16 +2064,16 @@ body {
 
 .heart-icon.heart-last-life {
   opacity: 1;
-  animation: heartbeat 1200ms var(--motion-ease-in-out-gentle) infinite;
+  animation: heartbeat 2000ms var(--motion-ease-in-out-gentle) infinite;
 }
 
 @keyframes heartbeat {
-  0%   { transform: scale(1); }
-  14%  { transform: scale(1.08); }
-  28%  { transform: scale(1); }
-  42%  { transform: scale(1.15); }
-  56%  { transform: scale(1); }
-  100% { transform: scale(1); }
+  0%    { transform: scale(1); }
+  7.5%  { transform: scale(1.08); }
+  15%   { transform: scale(1); }
+  22.5% { transform: scale(1.12); }
+  30%   { transform: scale(1); }
+  100%  { transform: scale(1); }
 }
 
 @media (prefers-reduced-motion: reduce) {
