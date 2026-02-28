@@ -110,6 +110,10 @@ const lastMove = ref(null) // { from, to }
 const heartsEntrance = ref(false) // Triggers staggered heart + timer entrance animation
 const heartbeatActive = ref(false) // Pulses last green heart when lives === 1
 let heartbeatDelayTimer = null
+const breakingHeartIndex = ref(null) // Which heart (1-indexed) is mid-break animation
+const breakingPhase = ref(null) // 'shrinking' | 'snapping'
+let breakingHeartTimer = null
+let breakingShrinkTimer = null
 const showVideoCard = ref(false) // Delayed entrance for video card after solved bubble
 watch(() => puzzlePhase.value, (phase) => {
   if (phase === 'solved') {
@@ -255,9 +259,38 @@ const stopTimer = () => {
   }
 }
 
-// Lose a life on wrong move
+// Lose a life — two-phase break animation:
+// 1. Shrink: filled heart compresses + desaturates (150ms)
+// 2. Snap: icon swaps to broken, pops back to full size (100ms)
 const loseLife = () => {
-  if (lives.value > 0) lives.value--
+  if (lives.value <= 0) return
+  if (breakingHeartIndex.value !== null) {
+    lives.value--
+    return
+  }
+  breakingHeartIndex.value = lives.value
+  breakingPhase.value = 'shrinking'
+
+  if (breakingShrinkTimer) clearTimeout(breakingShrinkTimer)
+  breakingShrinkTimer = setTimeout(() => {
+    breakingShrinkTimer = null
+    lives.value--
+    breakingPhase.value = 'snapping'
+  }, 150)
+
+  if (breakingHeartTimer) clearTimeout(breakingHeartTimer)
+  breakingHeartTimer = setTimeout(() => {
+    breakingHeartIndex.value = null
+    breakingPhase.value = null
+    breakingHeartTimer = null
+  }, 300)
+}
+
+const heartBreakStyle = (i) => {
+  if (heartsEntrance.value && breakingHeartIndex.value !== i) {
+    return { animationDelay: ((i - 1) * 120) + 'ms' }
+  }
+  return {}
 }
 
 // Drag state
@@ -685,6 +718,10 @@ const resetPuzzle = () => {
   heartsEntrance.value = false
   heartbeatActive.value = false
   if (heartbeatDelayTimer) { clearTimeout(heartbeatDelayTimer); heartbeatDelayTimer = null }
+  breakingHeartIndex.value = null
+  breakingPhase.value = null
+  if (breakingHeartTimer) { clearTimeout(breakingHeartTimer); breakingHeartTimer = null }
+  if (breakingShrinkTimer) { clearTimeout(breakingShrinkTimer); breakingShrinkTimer = null }
   loadPuzzle()
 }
 
@@ -1390,6 +1427,8 @@ onUnmounted(() => {
   // Clean up timer and soft-fail timeout
   stopTimer()
   if (softFailTimeout) { clearTimeout(softFailTimeout); softFailTimeout = null }
+  if (breakingHeartTimer) { clearTimeout(breakingHeartTimer); breakingHeartTimer = null }
+  if (breakingShrinkTimer) { clearTimeout(breakingShrinkTimer); breakingShrinkTimer = null }
 })
 
 
@@ -1586,11 +1625,18 @@ onUnmounted(() => {
               <CcIcon 
                 v-for="i in puzzle.results.totalLives" 
                 :key="i"
-                :name="i <= lives ? 'emote-heart-fill' : 'emote-heart-broken'" 
+                :name="breakingHeartIndex === i
+                  ? (breakingPhase === 'shrinking' ? 'emote-heart-fill' : 'emote-heart-broken')
+                  : (i <= lives ? 'emote-heart-fill' : 'emote-heart-broken')" 
                 :size="32" 
                 class="heart-icon"
-                :class="{ 'heart-lost': i > lives, 'heart-enter': heartsEntrance, 'heart-last-life': heartbeatActive && lives === 1 && i === 1 }"
-                :style="heartsEntrance ? { animationDelay: ((i - 1) * 120) + 'ms' } : {}"
+                :class="{
+                  'heart-lost': i > lives && breakingHeartIndex !== i,
+                  'heart-enter': heartsEntrance && breakingHeartIndex !== i && i <= lives,
+                  'heart-last-life': heartbeatActive && lives === 1 && i === 1,
+                  'heart-breaking': breakingHeartIndex === i,
+                }"
+                :style="heartBreakStyle(i)"
               />
             </div>
             <div 
@@ -2062,6 +2108,28 @@ body {
   opacity: 0.4;
 }
 
+.heart-icon.heart-breaking {
+  animation: heart-break var(--motion-steady, 300ms) var(--motion-ease-in-out-strong, cubic-bezier(0.5, 0, 0.6, 1)) both;
+}
+
+@keyframes heart-break {
+  0% {
+    transform: scale(1);
+    color: var(--color-green-300, #81B64C);
+    opacity: 1;
+  }
+  50% {
+    transform: scale(0.75);
+    color: var(--color-text-default, rgba(255, 255, 255, 0.72));
+    opacity: 0.4;
+  }
+  100% {
+    transform: scale(1);
+    color: var(--color-text-default, rgba(255, 255, 255, 0.72));
+    opacity: 0.4;
+  }
+}
+
 .heart-icon.heart-last-life {
   opacity: 1;
   animation: heartbeat 2000ms var(--motion-ease-in-out-gentle) infinite;
@@ -2078,6 +2146,9 @@ body {
 
 @media (prefers-reduced-motion: reduce) {
   .heart-icon.heart-last-life {
+    animation: none;
+  }
+  .heart-icon.heart-breaking {
     animation: none;
   }
 }
