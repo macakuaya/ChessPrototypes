@@ -9,8 +9,8 @@ import { getSuccessMessage } from './config/puzzleConfig'
 
 // Puzzle sound URLs from Chess.com CDN
 const PUZZLE_SOUNDS = {
-  correct: 'https://www.chess.com/bundles/web/sounds/mp3/correct.mp3',
-  incorrect: 'https://www.chess.com/bundles/web/sounds/mp3/incorrect.mp3',
+  correct: 'https://www.chess.com/bundles/web/sounds/correct-2-15.mp3',
+  incorrect: 'https://www.chess.com/bundles/web/sounds/incorrect-2-15.mp3',
   puzzleSolved: 'https://www.chess.com/bundles/web/sounds/puzzles/solving/puzzle-solved.wav',
   levelUp: 'https://www.chess.com/bundles/web/sounds/puzzles/level_up/level_up_award.wav',
 }
