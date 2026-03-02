@@ -1,5 +1,5 @@
 <script setup>
-import { computed } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { CcButton, CcIcon } from '@chesscom/design-system'
 
 const props = defineProps({
@@ -24,6 +24,37 @@ const hearts = computed(() => {
   }
   return result
 })
+
+const statsAnimating = ref(false)
+let statsTimer = null
+
+watch(() => props.open, (isOpen) => {
+  if (statsTimer) { clearTimeout(statsTimer); statsTimer = null }
+  if (isOpen) {
+    statsAnimating.value = false
+    statsTimer = setTimeout(() => { statsAnimating.value = true }, 400)
+  } else {
+    statsAnimating.value = false
+  }
+})
+
+const digitDiff = (prev, next) => {
+  const prevStr = String(prev).padStart(String(next).length, ' ')
+  const nextStr = String(next)
+  return nextStr.split('').map((d, i) => {
+    const p = prevStr[i]
+    return p === d ? { d, changed: false } : { prev: p === ' ' ? '' : p, next: d, changed: true }
+  })
+}
+
+const streakDigits = computed(() => digitDiff(props.currentStreak - 1, props.currentStreak))
+const maxStreakDigits = computed(() => {
+  if (props.currentStreak >= props.maxStreak) {
+    return digitDiff(props.maxStreak - 1, props.maxStreak)
+  }
+  return digitDiff(props.maxStreak, props.maxStreak)
+})
+const totalDigits = computed(() => digitDiff(props.totalSolved - 1, props.totalSolved))
 </script>
 
 <template>
@@ -77,15 +108,39 @@ const hearts = computed(() => {
           <div class="bottom-section">
             <div class="stats">
               <div class="stat">
-                <span class="stat-value">{{ currentStreak }}</span>
+                <span class="stat-value stat-digits">
+                  <template v-for="(dig, i) in streakDigits" :key="'s'+i">
+                    <span v-if="!dig.changed" class="digit-static">{{ dig.d }}</span>
+                    <span v-else class="digit-slot" :class="{ animating: statsAnimating }" :style="{ transitionDelay: '0ms' }">
+                      <span class="slot-prev">{{ dig.prev }}</span>
+                      <span class="slot-next">{{ dig.next }}</span>
+                    </span>
+                  </template>
+                </span>
                 <span class="stat-label">Streak</span>
               </div>
               <div class="stat">
-                <span class="stat-value">{{ maxStreak }}</span>
+                <span class="stat-value stat-digits">
+                  <template v-for="(dig, i) in maxStreakDigits" :key="'m'+i">
+                    <span v-if="!dig.changed" class="digit-static">{{ dig.d }}</span>
+                    <span v-else class="digit-slot" :class="{ animating: statsAnimating }" :style="{ transitionDelay: '100ms' }">
+                      <span class="slot-prev">{{ dig.prev }}</span>
+                      <span class="slot-next">{{ dig.next }}</span>
+                    </span>
+                  </template>
+                </span>
                 <span class="stat-label">Max Streak</span>
               </div>
               <div class="stat">
-                <span class="stat-value">{{ totalSolved }}</span>
+                <span class="stat-value stat-digits">
+                  <template v-for="(dig, i) in totalDigits" :key="'t'+i">
+                    <span v-if="!dig.changed" class="digit-static">{{ dig.d }}</span>
+                    <span v-else class="digit-slot" :class="{ animating: statsAnimating }" :style="{ transitionDelay: '200ms' }">
+                      <span class="slot-prev">{{ dig.prev }}</span>
+                      <span class="slot-next">{{ dig.next }}</span>
+                    </span>
+                  </template>
+                </span>
                 <span class="stat-label">Total</span>
               </div>
             </div>
@@ -270,6 +325,55 @@ const hearts = computed(() => {
   text-align: center;
   min-width: 100%;
   font-feature-settings: 'liga' 0;
+}
+
+.stat-digits {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.digit-static {
+  display: inline-block;
+}
+
+.digit-slot {
+  position: relative;
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  height: 28px;
+  overflow: hidden;
+}
+
+.digit-slot .slot-prev,
+.digit-slot .slot-next {
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform 500ms var(--motion-ease-out-gentle, cubic-bezier(0, 0, 0.2, 1)),
+              opacity 500ms var(--motion-ease-out-gentle, cubic-bezier(0, 0, 0.2, 1));
+}
+
+.digit-slot .slot-prev {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.digit-slot .slot-next {
+  opacity: 0;
+  transform: translateY(0);
+}
+
+.digit-slot.animating .slot-prev {
+  opacity: 0;
+  transform: translateY(-28px);
+}
+
+.digit-slot.animating .slot-next {
+  opacity: 1;
+  transform: translateY(-28px);
 }
 
 /* ===== TRANSITIONS ===== */

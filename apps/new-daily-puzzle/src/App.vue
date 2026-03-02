@@ -65,6 +65,7 @@ Object.values(COACH_VOICE_MAP).forEach(preloadCoachVoice)
 
 const coachVoiceMuted = ref(false)
 let activeCoachVoice = null
+let coachVoiceEndedPromise = Promise.resolve()
 
 const playCoachVoice = (message) => {
   if (coachVoiceMuted.value) return
@@ -78,7 +79,10 @@ const playCoachVoice = (message) => {
   audio.currentTime = 0
   audio.play().catch(e => console.warn('Coach voice playback failed:', e))
   activeCoachVoice = audio
+  coachVoiceEndedPromise = new Promise(resolve => { audio.onended = resolve })
 }
+
+const waitForCoachVoice = () => coachVoiceEndedPromise
 
 const stopCoachVoice = () => {
   if (activeCoachVoice) {
@@ -1206,12 +1210,13 @@ const tryMove = (from, to) => {
     
     if (isCheckmate) {
       const isBlackKing = true // White checkmates black king
-      triggerCheckmateAnimation(kingSquare, isBlackKing, () => {
+      triggerCheckmateAnimation(kingSquare, isBlackKing, async () => {
+        await waitForCoachVoice()
         setTimeout(() => {
           puzzlePhase.value = 'solved'
           stopTimer()
           playPuzzleSound('puzzleSolved')
-        }, 200)
+        }, 1000)
       })
     } else {
       // Advance to next move after a short delay
@@ -1526,12 +1531,13 @@ const handleSoftSolution = () => {
   displayedStreak.value = streak.value
   
   if (expected.isCheckmate) {
-    triggerCheckmateAnimation(expected.kingSquare, true, () => {
+    triggerCheckmateAnimation(expected.kingSquare, true, async () => {
+      await waitForCoachVoice()
       setTimeout(() => {
         puzzlePhase.value = 'solved'
         stopTimer()
         playPuzzleSound('puzzleSolved')
-      }, 200)
+      }, 1000)
     })
   } else {
     scheduleNextMove(1500)
