@@ -34,6 +34,59 @@ const playPuzzleSound = (key) => {
   audio.play().catch(error => console.warn('Failed to play sound:', error))
 }
 
+// ============================================
+// COACH VOICE (Sloane V7 via ElevenLabs)
+// ============================================
+const coachVoiceBase = import.meta.env.BASE_URL + 'audio/'
+const COACH_VOICE_MAP = {
+  '26 days in a row — that\'s a chess marathon! Ready to solve another?': 'intro.mp3',
+  'Find the best move for white.': 'awaiting.mp3',
+  "There's a better move, try again.": 'wrong.mp3',
+  'Out of hearts! See the solution or keep trying on your own.': 'out-of-hearts.mp3',
+  'Nice job! To learn a little more about this puzzle, watch the video.': 'solved.mp3',
+  'Look at the bishop on e4': 'hint-bishop-e4.mp3',
+  'Attack along the diagonal with the bishop': 'movehint-bishop.mp3',
+  'Bd5 is correct!': 'correct-bd5.mp3',
+  'Look at the rook on e1': 'hint-rook-e1.mp3',
+  'Deliver checkmate with the rook': 'movehint-rook.mp3',
+  'Re8# Checkmate!': 'correct-re8-checkmate.mp3',
+}
+
+const coachVoiceCache = {}
+const preloadCoachVoice = (filename) => {
+  if (!coachVoiceCache[filename]) {
+    coachVoiceCache[filename] = new Audio(coachVoiceBase + filename)
+    coachVoiceCache[filename].preload = 'auto'
+  }
+  return coachVoiceCache[filename]
+}
+Object.values(COACH_VOICE_MAP).forEach(preloadCoachVoice)
+
+const coachVoiceMuted = ref(false)
+let activeCoachVoice = null
+
+const playCoachVoice = (message) => {
+  if (coachVoiceMuted.value) return
+  if (activeCoachVoice) {
+    activeCoachVoice.pause()
+    activeCoachVoice.currentTime = 0
+  }
+  const filename = COACH_VOICE_MAP[message]
+  if (!filename) return
+  const audio = preloadCoachVoice(filename)
+  audio.currentTime = 0
+  audio.play().catch(e => console.warn('Coach voice playback failed:', e))
+  activeCoachVoice = audio
+}
+
+const stopCoachVoice = () => {
+  if (activeCoachVoice) {
+    activeCoachVoice.pause()
+    activeCoachVoice.currentTime = 0
+    activeCoachVoice = null
+  }
+}
+
 // Icon names from Figma design
 const icons = {
   // Header icons (20px)
@@ -553,6 +606,17 @@ function onCoachBubbleLeave() {
   }
 }
 
+// Play Sloane voice when the coach bubble becomes visible with a new message
+let lastVoicedMessage = ''
+watch(showCoachBubble, (visible) => {
+  if (visible && coachMessage.value && coachMessage.value !== lastVoicedMessage) {
+    lastVoicedMessage = coachMessage.value
+    playCoachVoice(coachMessage.value)
+  } else if (!visible) {
+    stopCoachVoice()
+  }
+})
+
 // Streak color logic
 // 0-1 = green (text-win), 2 = lowest, 3-4 = low, 5-6 = medium, 7+ = high
 // Streak color uses displayedStreak (synced with explosion animation)
@@ -776,6 +840,8 @@ const loadPuzzle = () => {
 
 // Reset the puzzle back to the intro screen
 const resetPuzzle = () => {
+  stopCoachVoice()
+  lastVoicedMessage = ''
   stopTimer()
   timerSeconds.value = 0
   lives.value = puzzle.results.totalLives
@@ -1501,6 +1567,7 @@ onUnmounted(() => {
   if (breakingHeartTimer) { clearTimeout(breakingHeartTimer); breakingHeartTimer = null }
   if (breakingShrinkTimer) { clearTimeout(breakingShrinkTimer); breakingShrinkTimer = null }
   stopHeartbeatSound()
+  stopCoachVoice()
 })
 
 
@@ -1664,8 +1731,8 @@ onUnmounted(() => {
             />
             <span>Daily Puzzle</span>
           </div>
-          <div class="header-icon-container">
-            <CcIcon :name="icons.sound" :size="20" />
+          <div class="header-icon-container" @click="coachVoiceMuted = !coachVoiceMuted; if (coachVoiceMuted) stopCoachVoice()" style="cursor: pointer;">
+            <CcIcon :name="coachVoiceMuted ? 'media-audio-speaker-muted' : icons.sound" :size="20" />
           </div>
         </header>
 
