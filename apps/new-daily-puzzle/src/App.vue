@@ -5,6 +5,7 @@ import { CcButton, CcIconButton, CcIcon, CcDropdownButton } from '@chesscom/desi
 import CoachBubble from './components/CoachBubble.vue'
 import SuccessDialogue from './components/SuccessDialogue.vue'
 import { playSound } from '@chess/components/sounds'
+import { getSuccessMessage } from './config/puzzleConfig'
 
 // Puzzle sound URLs from Chess.com CDN
 const PUZZLE_SOUNDS = {
@@ -179,6 +180,19 @@ watch(() => puzzlePhase.value, (phase) => {
     showSuccessDialogue.value = false
   }
 })
+
+const successTitle = computed(() => getSuccessMessage(lives.value, puzzle.results.totalLives))
+
+const SUCCESS_SUBTITLES = {
+  'Perfect!': 'No mistakes! You crushed it.',
+  'Awesome!': 'So close to perfect — just one slip.',
+  'Great!': 'A couple of stumbles, but you powered through.',
+  'Good!': 'You found the solution — that\'s what counts.',
+  'Got it!': 'Down to the wire, but you pulled it off!',
+  'Next time!': 'Tough one! The more you solve, the sharper you get.',
+}
+
+const successSubtitle = computed(() => SUCCESS_SUBTITLES[successTitle.value] || '')
 
 // Hint state
 const hintHighlightSquare = ref(null)  // square to highlight with blue overlay (piece to move)
@@ -1686,8 +1700,8 @@ onUnmounted(() => {
           <!-- Success Dialogue -->
           <SuccessDialogue
             :open="showSuccessDialogue"
-            :title="puzzle.results.title"
-            :subtitle="puzzle.results.subtitle"
+            :title="successTitle"
+            :subtitle="successSubtitle"
             :hearts-remaining="lives"
             :hearts-total="puzzle.results.totalLives"
             :current-streak="puzzle.results.currentStreak"
@@ -1728,11 +1742,13 @@ onUnmounted(() => {
               src="https://www.chess.com/bundles/web/images/color-icons/calendar-dailypuzzle.svg" 
               alt="Daily Puzzle" 
               class="lessons-icon"
+              style="cursor: pointer;"
+              @click="puzzlePhase = puzzlePhase === 'solved' ? 'intro' : 'solved'; stopTimer()"
             />
             <span>Daily Puzzle</span>
           </div>
           <div class="header-icon-container" @click="coachVoiceMuted = !coachVoiceMuted; if (coachVoiceMuted) stopCoachVoice()" style="cursor: pointer;">
-            <CcIcon :name="coachVoiceMuted ? 'media-audio-speaker-muted' : icons.sound" :size="20" />
+            <CcIcon :name="coachVoiceMuted ? 'media-audio-speaker-mute' : icons.sound" :size="20" />
           </div>
         </header>
 
