@@ -1560,7 +1560,8 @@ const openVideo = () => {
 // ============================================
 // SHARE
 // ============================================
-const shareCopied = ref(false)
+const panelShareCopied = ref(false)
+const dialogueShareCopied = ref(false)
 
 const generateShareMessage = () => {
   const board = Array.from({ length: 8 }, () => Array(8).fill(null))
@@ -1605,12 +1606,23 @@ const generateShareMessage = () => {
   ].join('\n')
 }
 
-const handleShare = async () => {
+const handlePanelShare = async () => {
   const message = generateShareMessage()
   try {
     await navigator.clipboard.writeText(message)
-    shareCopied.value = true
-    setTimeout(() => { shareCopied.value = false }, 2000)
+    panelShareCopied.value = true
+    setTimeout(() => { panelShareCopied.value = false }, 2000)
+  } catch (e) {
+    console.warn('Clipboard copy failed:', e)
+  }
+}
+
+const handleDialogueShare = async () => {
+  const message = generateShareMessage()
+  try {
+    await navigator.clipboard.writeText(message)
+    dialogueShareCopied.value = true
+    setTimeout(() => { dialogueShareCopied.value = false }, 2000)
   } catch (e) {
     console.warn('Clipboard copy failed:', e)
   }
@@ -1775,9 +1787,9 @@ onUnmounted(() => {
             :current-streak="puzzle.results.currentStreak"
             :max-streak="puzzle.results.bestRecord"
             :total-solved="puzzle.results.totalSolved"
-            :copied="shareCopied"
+            :copied="dialogueShareCopied"
             @close="showSuccessDialogue = false"
-            @share="handleShare"
+            @share="handleDialogueShare"
             @more-puzzles="showSuccessDialogue = false"
           />
         </div>
@@ -1937,9 +1949,10 @@ onUnmounted(() => {
               <CcButton 
                 variant="primary" 
                 size="large" 
-                :icon="{ name: 'graph-nodes-share' }"
+                :icon="{ name: panelShareCopied ? 'mark-check' : 'graph-nodes-share', variant: 'glyph' }"
+                @click="handlePanelShare"
               >
-                Share
+                {{ panelShareCopied ? 'Copied!' : 'Share' }}
               </CcButton>
             </template>
             <!-- Wrong move with lives: Soft fail buttons (Move / Solution) -->
@@ -2591,6 +2604,7 @@ body {
 
 .action-buttons > :deep(button) {
   flex: 1;
+  min-width: 0;
   max-height: 4.8rem;
 }
 

@@ -167,9 +167,10 @@ const totalDigits = computed(() => digitDiff(props.totalSolved - 1, props.totalS
                 variant="primary"
                 size="xx-large"
                 :full-width="true"
+                :icon="{ name: copied ? 'mark-check' : 'graph-nodes-share', variant: 'glyph' }"
                 @click="emit('share')"
               >
-                {{ copied ? 'Copied!' : 'Share Your Results' }}
+                {{ copied ? 'Copied!' : 'Share' }}
               </CcButton>
             </div>
           </div>
