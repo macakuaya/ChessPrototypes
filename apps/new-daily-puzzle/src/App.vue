@@ -1554,6 +1554,65 @@ const openVideo = () => {
   // No-op for now
 }
 
+// ============================================
+// SHARE
+// ============================================
+const shareCopied = ref(false)
+
+const generateShareMessage = () => {
+  const board = Array.from({ length: 8 }, () => Array(8).fill(null))
+  const initialPieces = parseFEN(puzzle.initialFEN)
+
+  for (const p of initialPieces) {
+    const file = p.square.charCodeAt(0) - 'a'.charCodeAt(0)
+    const rank = parseInt(p.square[1]) - 1
+    const row = 7 - rank
+    board[row][file] = p.type.startsWith('w') ? 'w' : 'b'
+  }
+
+  const solutionSquares = new Set()
+  for (const m of puzzle.moves) {
+    solutionSquares.add(m.from)
+    solutionSquares.add(m.to)
+  }
+  for (const sq of solutionSquares) {
+    const file = sq.charCodeAt(0) - 'a'.charCodeAt(0)
+    const rank = parseInt(sq[1]) - 1
+    const row = 7 - rank
+    if (board[row][file] !== 'b') board[row][file] = 'w'
+  }
+
+  const grid = board.map((row, r) =>
+    row.map((cell, c) => {
+      if (cell === 'b') return '⚫'
+      if (cell === 'w') return '🟡'
+      return (r + c) % 2 === 0 ? '⬜' : '🟩'
+    }).join('')
+  ).join('\n')
+
+  const heartsLine = '💚'.repeat(lives.value) + '🖤'.repeat(puzzle.results.totalLives - lives.value)
+
+  return [
+    'Chess.com/daily',
+    `\u201C${puzzle.title}\u201D`,
+    `${heartsLine} ${successTitle.value}`,
+    '',
+    grid,
+    `Solved in ${timerDisplay.value}`,
+  ].join('\n')
+}
+
+const handleShare = async () => {
+  const message = generateShareMessage()
+  try {
+    await navigator.clipboard.writeText(message)
+    shareCopied.value = true
+    setTimeout(() => { shareCopied.value = false }, 2000)
+  } catch (e) {
+    console.warn('Clipboard copy failed:', e)
+  }
+}
+
 const startPuzzle = () => {
   puzzlePhase.value = 'playing'
   moveState.value = 'awaiting'
@@ -1713,8 +1772,9 @@ onUnmounted(() => {
             :current-streak="puzzle.results.currentStreak"
             :max-streak="puzzle.results.bestRecord"
             :total-solved="puzzle.results.totalSolved"
+            :copied="shareCopied"
             @close="showSuccessDialogue = false"
-            @share="showSuccessDialogue = false"
+            @share="handleShare"
             @more-puzzles="showSuccessDialogue = false"
           />
         </div>

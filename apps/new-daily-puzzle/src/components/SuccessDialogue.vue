@@ -11,6 +11,7 @@ const props = defineProps({
   currentStreak: { type: Number, default: 0 },
   maxStreak: { type: Number, default: 0 },
   totalSolved: { type: Number, default: 0 },
+  copied: { type: Boolean, default: false },
 })
 
 const emit = defineEmits(['close', 'share', 'more-puzzles'])
@@ -99,7 +100,7 @@ const totalDigits = computed(() => digitDiff(props.totalSolved - 1, props.totalS
                 :full-width="true"
                 @click="emit('share')"
               >
-                Share Your Results
+                {{ copied ? 'Copied!' : 'Share Your Results' }}
               </CcButton>
             </div>
           </div>
@@ -181,7 +182,7 @@ const totalDigits = computed(() => digitDiff(props.totalSolved - 1, props.totalS
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 16px;
+  gap: 12px;
   padding: 24px 12px 12px;
   position: relative;
   overflow: clip;
@@ -280,7 +281,7 @@ const totalDigits = computed(() => digitDiff(props.totalSolved - 1, props.totalS
 .bottom-section {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 12px;
   width: 100%;
 }
 
