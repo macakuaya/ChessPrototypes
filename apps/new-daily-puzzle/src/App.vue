@@ -3,6 +3,7 @@ import { ref, computed, watch, onUnmounted, nextTick } from 'vue'
 import { CcButton, CcIconButton, CcIcon, CcDropdownButton } from '@chesscom/design-system'
 // CcIconButton used for date picker arrows, CcDropdownButton for date selector
 import CoachBubble from './components/CoachBubble.vue'
+import SuccessDialogue from './components/SuccessDialogue.vue'
 import { playSound } from '@chess/components/sounds'
 
 // Puzzle sound URLs from Chess.com CDN
@@ -82,7 +83,7 @@ const puzzle = {
   ],
   results: {
     title: 'Awesome!',
-    subtitle: 'You solved this puzzle in 3 minutes.\nYou are in the top 10% fastest!',
+    subtitle: 'No mistakes were made.\nYou are in the top 1% earliest to do it!',
     totalSolved: 145,
     currentStreak: 26,
     bestRecord: 35,
@@ -115,11 +116,14 @@ const breakingPhase = ref(null) // 'shrinking' | 'snapping'
 let breakingHeartTimer = null
 let breakingShrinkTimer = null
 const showVideoCard = ref(false) // Delayed entrance for video card after solved bubble
+const showSuccessDialogue = ref(false) // Success dialogue after solving
 watch(() => puzzlePhase.value, (phase) => {
   if (phase === 'solved') {
     setTimeout(() => { showVideoCard.value = true }, 600)
+    setTimeout(() => { showSuccessDialogue.value = true }, 900)
   } else {
     showVideoCard.value = false
+    showSuccessDialogue.value = false
   }
 })
 
@@ -767,6 +771,7 @@ const loadPuzzle = () => {
   failCountForCurrentMove.value = 0
   softMoveUsed.value = false
   showVideoCard.value = false
+  showSuccessDialogue.value = false
 }
 
 // Reset the puzzle back to the intro screen
@@ -1610,7 +1615,21 @@ onUnmounted(() => {
               '--slide-from-y': (slidingPiece.startY - slidingPiece.endY) + 'px',
             }"
           />
-          
+
+          <!-- Success Dialogue -->
+          <SuccessDialogue
+            :open="showSuccessDialogue"
+            :title="puzzle.results.title"
+            :subtitle="puzzle.results.subtitle"
+            :hearts-remaining="lives"
+            :hearts-total="puzzle.results.totalLives"
+            :current-streak="puzzle.results.currentStreak"
+            :max-streak="puzzle.results.bestRecord"
+            :total-solved="puzzle.results.totalSolved"
+            @close="showSuccessDialogue = false"
+            @share="showSuccessDialogue = false"
+            @more-puzzles="showSuccessDialogue = false"
+          />
         </div>
         
         <!-- Dragged piece (follows cursor) -->
