@@ -146,10 +146,10 @@ const totalDigits = computed(() => digitDiff(props.totalSolved - 1, props.totalS
             </div>
 
             <CcButton
-              variant="ghost"
+              variant="secondary"
               size="large"
               :full-width="true"
-              :icon="{ name: 'game-type-puzzle', variant: 'glyph' }"
+              :icon="{ name: 'puzzle-piece', variant: 'color' }"
               @click="emit('more-puzzles')"
             >
               Solve more Puzzles
