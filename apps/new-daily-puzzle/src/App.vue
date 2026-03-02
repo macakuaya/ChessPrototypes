@@ -1156,7 +1156,7 @@ const tryMove = (from, to) => {
               hintHighlightSquare.value = expected.from
             }
             
-            if (failCountForCurrentMove.value >= 2) {
+            if (failCountForCurrentMove.value >= 2 || softMoveUsed.value) {
               showMoveArrow.value = true
               softMoveUsed.value = true
             } else {
@@ -1316,9 +1316,10 @@ const handleSolution = () => {
 }
 
 const handleShowMoveArrow = () => {
-  // Show the arrow pointing to where the piece should go and lose a life (from hint state)
+  if (softMoveUsed.value) return
   loseLife()
   showMoveArrow.value = true
+  softMoveUsed.value = true
 }
 
 const softMoveUsed = ref(false)
@@ -1743,6 +1744,9 @@ onUnmounted(() => {
                 variant="secondary" 
                 size="large" 
                 :icon="{ name: moveState === 'hint' ? 'circle-fill-question' : icons.hint }" 
+                :disabled="moveState === 'hint' && softMoveUsed"
+                class="soft-move-btn"
+                :class="{ 'soft-move-btn-disabled': moveState === 'hint' && softMoveUsed }"
                 @click="moveState === 'hint' ? handleShowMoveArrow() : handleHint()"
               >
                 {{ moveState === 'hint' ? 'Move' : 'Hint' }}
