@@ -40,7 +40,7 @@ const playPuzzleSound = (key) => {
 // ============================================
 const coachVoiceBase = import.meta.env.BASE_URL + 'audio/'
 const COACH_VOICE_MAP = {
-  '26 days in a row — that\'s a chess marathon! Ready to solve another?': 'intro.mp3',
+  'Welcome! It\'s nice to have you back.': 'intro.mp3',
   'Find the best move for white.': 'awaiting.mp3',
   "There's a better move, try again.": 'wrong.mp3',
   'Out of hearts! See the solution or keep trying on your own.': 'out-of-hearts.mp3',
@@ -473,7 +473,7 @@ const coachHeaderText = computed(() => {
 // Coach message based on state
 const coachMessage = computed(() => {
   if (puzzlePhase.value === 'intro') {
-    return '26 days in a row — that\'s a chess marathon! Ready to solve another?'
+    return 'Welcome! It\'s nice to have you back.'
   }
   if (puzzlePhase.value === 'solved') {
     return 'Nice job! To learn a little more about this puzzle, watch the video.'
@@ -633,7 +633,7 @@ watch(showCoachBubble, (visible) => {
   } else if (!visible) {
     stopCoachVoice()
   }
-})
+}, { immediate: true })
 
 // Streak color logic
 // 0-1 = green (text-win), 2 = lowest, 3-4 = low, 5-6 = medium, 7+ = high
@@ -1778,6 +1778,7 @@ onUnmounted(() => {
               variant="hovered"
               size="small"
               tooltip="Next day"
+              disabled
             />
           </div>
 
