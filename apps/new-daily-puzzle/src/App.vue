@@ -131,7 +131,7 @@ const fionaAvatarUrl = import.meta.env.BASE_URL + 'images/fiona.png'
 const puzzle = {
   title: 'Clear the Decks',
   date: 'March 19, 2024',
-  solvedByText: 'Solved by Erik, drRittman, asma_abdel, and 1,269,372 more!',
+  solvedByText: 'Solved by Erik, drRittman, and 1,269,372 more!',
   initialFEN: '6kb/7p/p1n3bP/1p4P1/4Bp2/BPq5/P1P2P2/4R3 w - - 0 1',
   hint: 'Look at the bishop on e4',
   moves: [
@@ -859,6 +859,7 @@ const loadPuzzle = () => {
   classificationType.value = null
   failCountForCurrentMove.value = 0
   softMoveUsed.value = false
+  wrongFromHint.value = false
   preOutOfHeartsState.value = null
   showVideoCard.value = false
   showSuccessDialogue.value = false
@@ -1254,6 +1255,7 @@ const tryMove = (from, to) => {
     
     // Reset streak, lose a life, and set wrong state
     const prevHintState = (moveState.value === 'soft-hint' || moveState.value === 'soft-solution') ? moveState.value : null
+    wrongFromHint.value = moveState.value === 'hint' || moveState.value === 'soft-hint' || moveState.value === 'soft-solution'
     streak.value = 0
     loseLife()
     failCountForCurrentMove.value++
@@ -1460,72 +1462,9 @@ const handleShowMoveArrow = () => {
 }
 
 const softMoveUsed = ref(false)
+const wrongFromHint = ref(false)
 const preOutOfHeartsState = ref(null)
 
-const handleSoftMove = () => {
-  if (softMoveUsed.value) return
-  // Cancel pending auto-restore if user clicks before 2500ms
-  if (softFailTimeout) { clearTimeout(softFailTimeout); softFailTimeout = null }
-  if (moveState.value === 'wrong') {
-    slidingPiece.value = null
-    softRestoreBoard()
-    const expected = currentExpectedMove.value
-    if (expected) hintHighlightSquare.value = expected.from
-    moveState.value = 'soft-hint'
-  }
-  loseLife()
-  showMoveArrow.value = true
-  skipNextCoachAnimation = true
-  softMoveUsed.value = true
-}
-
-const handleSoftSolution = () => {
-  // Cancel pending auto-restore if user clicks before 2500ms
-  if (softFailTimeout) { clearTimeout(softFailTimeout); softFailTimeout = null }
-  if (moveState.value === 'wrong' || moveState.value === 'soft-solution') {
-    slidingPiece.value = null
-    softRestoreBoard()
-  }
-  
-  loseLife()
-  
-  const expected = currentExpectedMove.value
-  if (!expected) return
-  
-  hintHighlightSquare.value = null
-  showMoveArrow.value = false
-  
-  const isCapture = getPieceOnSquare(expected.to) !== undefined
-  makeMove(expected.from, expected.to)
-  lastMove.value = { from: expected.from, to: expected.to }
-  moveState.value = 'correct'
-  classificationSquare.value = expected.to
-  classificationType.value = 'correct'
-  failCountForCurrentMove.value = 0
-  
-  playPuzzleSound('correct')
-  if (isCapture) {
-    playSound('capture')
-  } else {
-    playSound('move')
-  }
-  
-  displayedProgress.value = actualProgress.value
-  displayedStreak.value = streak.value
-  
-  if (expected.isCheckmate) {
-    triggerCheckmateAnimation(expected.kingSquare, true, async () => {
-      await waitForCoachVoice()
-      setTimeout(() => {
-        puzzlePhase.value = 'solved'
-        stopTimer()
-        playPuzzleSound('puzzleSolved')
-      }, 1000)
-    })
-  } else {
-    scheduleNextMove(1500)
-  }
-}
 
 const handleRetry = () => {
   const restoreTo = preOutOfHeartsState.value
@@ -1903,7 +1842,7 @@ onUnmounted(() => {
 
         <!-- Footer -->
         <footer class="panel-footer">
-          <p v-if="puzzlePhase === 'intro'" class="solved-by-text">{{ puzzle.solvedByText }}</p>
+          <p class="solved-by-text">{{ puzzle.solvedByText }}</p>
           <div class="action-buttons">
             <!-- Solved state -->
             <template v-if="puzzlePhase === 'solved'">
@@ -1923,52 +1862,23 @@ onUnmounted(() => {
                 {{ panelShareCopied ? 'Copied!' : 'Share' }}
               </CcButton>
             </template>
-            <!-- Wrong move with lives: Soft fail buttons (Move / Solution) -->
-            <template v-else-if="moveState === 'wrong' && lives > 0">
-              <CcButton
-                v-if="failCountForCurrentMove >= 2"
-                variant="secondary" size="large"
-                :icon="{ name: 'tool-magnifier-check' }"
-                @click="handleSoftSolution"
-              >Solution</CcButton>
-              <CcButton
-                v-else
-                variant="secondary" size="large"
-                :icon="{ name: 'circle-fill-question' }"
-                :disabled="softMoveUsed"
-                class="soft-move-btn"
-                :class="{ 'soft-move-btn-disabled': softMoveUsed }"
-                @click="handleSoftMove"
-              >Move</CcButton>
-            </template>
-            <!-- Wrong move with no lives: existing Solution + Keep Going -->
+            <!-- Wrong move with no lives: Solution + Keep Going -->
             <template v-else-if="moveState === 'wrong' && lives === 0">
               <CcButton variant="secondary" size="large" :icon="{ name: 'circle-fill-info' }" @click="handleSolution">Solution</CcButton>
               <CcButton variant="primary" size="large" :icon="{ name: 'arrow-line-right' }" @click="handleRetry">Keep Going</CcButton>
             </template>
-            <!-- Soft-hint: Move button (disabled once used) -->
-            <template v-else-if="moveState === 'soft-hint'">
-              <CcButton
-                variant="secondary" size="large"
-                :icon="{ name: 'circle-fill-question' }"
-                :disabled="softMoveUsed"
-                class="soft-move-btn"
-                :class="{ 'soft-move-btn-disabled': softMoveUsed }"
-                @click="handleSoftMove"
-              >Move</CcButton>
-            </template>
-            <!-- Awaiting / hint / correct / computer-moving: Hint → Move flow -->
+            <!-- Default: Hint / Move flow -->
             <template v-else>
               <CcButton 
                 variant="secondary" 
                 size="large" 
-                :icon="{ name: moveState === 'hint' ? 'circle-fill-question' : icons.hint }" 
-                :disabled="moveState === 'hint' && softMoveUsed"
+                :icon="{ name: (moveState === 'hint' || moveState === 'soft-hint' || (moveState === 'wrong' && wrongFromHint)) ? 'circle-fill-question' : icons.hint }" 
+                :disabled="(moveState === 'hint' || moveState === 'soft-hint' || (moveState === 'wrong' && wrongFromHint)) && softMoveUsed"
                 class="soft-move-btn"
-                :class="{ 'soft-move-btn-disabled': moveState === 'hint' && softMoveUsed }"
-                @click="moveState === 'hint' ? handleShowMoveArrow() : handleHint()"
+                :class="{ 'soft-move-btn-disabled': (moveState === 'hint' || moveState === 'soft-hint' || (moveState === 'wrong' && wrongFromHint)) && softMoveUsed }"
+                @click="moveState === 'wrong' ? null : ((moveState === 'hint' || moveState === 'soft-hint') ? handleShowMoveArrow() : handleHint())"
               >
-                {{ moveState === 'hint' ? 'Move' : 'Hint' }}
+                {{ (moveState === 'hint' || moveState === 'soft-hint' || (moveState === 'wrong' && wrongFromHint)) ? 'Move' : 'Hint' }}
               </CcButton>
             </template>
           </div>
