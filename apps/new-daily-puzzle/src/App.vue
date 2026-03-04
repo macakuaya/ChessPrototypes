@@ -1561,7 +1561,7 @@ onUnmounted(() => {
 
           <!-- Video Explanation Card (delayed after solved bubble settles) -->
           <Transition name="video-card-fade">
-          <div v-if="showVideoCard" class="video-card">
+          <div v-if="showVideoCard" class="video-card" @click="openVideo">
             <img 
               class="video-card-avatar" 
               :src="fionaAvatarUrl" 
@@ -2045,6 +2045,14 @@ body {
   background: var(--color-bg-subtlest, rgba(255, 255, 255, 0.02));
   border-radius: 10px;
   width: 100%;
+  cursor: pointer;
+  transition: background var(--motion-fast, 150ms) var(--motion-ease-out-gentle, cubic-bezier(0, 0, 0.2, 1));
+}
+
+@media (hover: hover) {
+  .video-card:hover {
+    background: var(--color-bg-subtler, rgba(255, 255, 255, 0.08));
+  }
 }
 
 .video-card-avatar {

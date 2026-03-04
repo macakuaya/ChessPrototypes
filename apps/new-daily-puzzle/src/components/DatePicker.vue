@@ -6,6 +6,7 @@ defineProps({
   showUpChevron: { type: Boolean, default: false },
   nextDisabled: { type: Boolean, default: false },
   prevDisabled: { type: Boolean, default: false },
+  hideChevrons: { type: Boolean, default: false },
 })
 
 defineEmits(['prev', 'next', 'toggle'])
@@ -14,6 +15,7 @@ defineEmits(['prev', 'next', 'toggle'])
 <template>
   <div class="date-picker">
     <CcIconButton
+      v-if="!hideChevrons"
       :icon="{ name: 'arrow-chevron-left', variant: 'glyph' }"
       variant="hovered"
       size="small"
@@ -30,6 +32,7 @@ defineEmits(['prev', 'next', 'toggle'])
       @click="$emit('toggle')"
     />
     <CcIconButton
+      v-if="!hideChevrons"
       :icon="{ name: 'arrow-chevron-right', variant: 'glyph' }"
       variant="hovered"
       size="small"

@@ -50,8 +50,17 @@ const firstDayOffset = computed(() => {
   return jsDay === 0 ? 6 : jsDay - 1
 })
 
-// Mock data: only March 2026 has solve/streak data
-const MOCK_STATES = { 2026: { 2: { 1: 'solved', 2: 'streak', 3: 'streak' } } }
+// Mock data for past months
+const MOCK_STATES = {
+  2025: {
+    11: { 5: 'solved', 12: 'solved', 13: 'solved', 14: 'solved', 15: 'solved', 16: 'solved', 17: 'solved', 22: 'solved', 29: 'solved' },
+  },
+  2026: {
+    0: { 3: 'solved', 7: 'solved', 8: 'solved', 9: 'solved', 10: 'solved', 11: 'solved', 12: 'solved', 13: 'solved', 20: 'solved', 21: 'solved', 27: 'solved' },
+    1: { 2: 'solved', 3: 'solved', 9: 'solved', 14: 'solved', 15: 'solved', 16: 'solved', 17: 'solved', 18: 'solved', 19: 'solved', 20: 'solved', 25: 'solved', 26: 'solved', 27: 'solved', 28: 'solved' },
+    2: { 1: 'solved', 2: 'streak', 3: 'streak' },
+  },
+}
 
 const getState = (day) => {
   const y = currentYear.value
@@ -119,7 +128,7 @@ const weeks = computed(() => {
     <DatePicker
       :label="dateLabel"
       :show-up-chevron="true"
-      :next-disabled="true"
+      :hide-chevrons="true"
       @toggle="emit('close')"
     />
 
@@ -186,12 +195,8 @@ const weeks = computed(() => {
       <!-- Legend -->
       <div class="legend">
         <div class="legend-item">
-          <CcIcon name="mark-check" :size="16" class="icon-solved" />
-          <span class="legend-text">Solved Puzzle</span>
-        </div>
-        <div class="legend-item">
           <CcIcon name="element-fire-blank" :size="16" :style="{ color: streakColor }" />
-          <span class="legend-text">Current Streak</span>
+          <span class="legend-text">{{ streakLength }} day{{ streakLength !== 1 ? 's' : '' }} Streak</span>
         </div>
       </div>
     </div>
@@ -204,7 +209,7 @@ const weeks = computed(() => {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 24px;
+  gap: 16px;
   padding: 16px 24px 24px;
   overflow: auto;
 }
@@ -214,7 +219,7 @@ const weeks = computed(() => {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 12px;
+  gap: 16px;
 }
 
 .puzzle-title {
@@ -388,7 +393,7 @@ const weeks = computed(() => {
 .legend-text {
   font-family: var(--font-family-body, -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, Helvetica, Arial, sans-serif);
   font-weight: 600;
-  font-size: 12px;
+  font-size: 14px;
   line-height: 16px;
   color: var(--color-text-default, rgba(255, 255, 255, 0.72));
   white-space: nowrap;
