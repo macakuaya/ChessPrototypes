@@ -191,8 +191,8 @@ const totalDigits = computed(() => digitDiff(props.totalSolved - 1, props.totalS
                 <span class="stat-label">Streak</span>
               </div>
               <div class="stat">
-                <span class="stat-value">89<span class="percent-sign">%</span></span>
-                <span class="stat-label">% Solved</span>
+                <span class="stat-value">89</span>
+                <span class="stat-label">Solve %</span>
               </div>
               <div class="stat">
                 <span class="stat-value stat-digits">
@@ -204,7 +204,7 @@ const totalDigits = computed(() => digitDiff(props.totalSolved - 1, props.totalS
                     </span>
                   </template>
                 </span>
-                <span class="stat-label">Total</span>
+                <span class="stat-label">Completed</span>
               </div>
             </div>
 
