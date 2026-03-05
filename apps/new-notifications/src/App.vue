@@ -3,7 +3,7 @@
     <nav class="nav-component">
       <div class="nav-top">
         <div class="nav-logo">
-          <img class="nav-logo-img" src="/ChessPrototypes/new-notifications/chess-com-logo.png" alt="Chess.com" />
+          <img class="nav-logo-img" :src="`${baseUrl}chess-com-logo.png`" alt="Chess.com" />
         </div>
 
         <div class="nav-links">
@@ -214,6 +214,8 @@ import {
 } from '@chesscom/design-system'
 import { ref, computed, watch, nextTick, onMounted, onUnmounted } from 'vue'
 import PrototypeMenu from './components/PrototypeMenu.vue'
+
+const baseUrl = import.meta.env.BASE_URL
 
 const mainLinks = [
   { icon: 'play-white', label: 'Play' },
