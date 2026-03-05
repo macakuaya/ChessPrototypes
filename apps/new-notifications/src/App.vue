@@ -83,13 +83,14 @@
     <!-- Notifications Popover -->
     <div v-show="showNotifications" class="notif-popover" @click.stop>
       <!-- Empty State -->
-      <div v-if="filteredNotifications.length === 0" class="notif-empty">
-        <cc-icon name="media-bell-fill" :size="48" />
-        <div class="notif-empty-copy">
-          <p class="notif-empty-title">You're All Caught Up!</p>
-          <p class="notif-empty-body">Notifications about clubs, players you follow, and more will appear here</p>
-        </div>
-      </div>
+      <cc-empty-state
+        v-if="filteredNotifications.length === 0"
+        class="notif-empty"
+        header="You're All Caught Up!"
+        subheader="Notifications about clubs, players you follow, and more will appear here"
+        :icon="{ name: 'media-bell-fill', variant: 'glyph' }"
+        :icon-size="48"
+      />
 
       <!-- Notification List -->
       <div v-else class="notif-list">
@@ -209,6 +210,7 @@ import {
   CcIconButton,
   CcSwitch,
   CcDropdownItem,
+  CcEmptyState,
 } from '@chesscom/design-system'
 import { ref, computed, watch, nextTick, onMounted, onUnmounted } from 'vue'
 import PrototypeMenu from './components/PrototypeMenu.vue'
@@ -724,37 +726,6 @@ body.dark-mode {
 
 .notif-empty {
   flex: 1;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: var(--space-12, 12px);
-  padding: var(--space-16, 16px);
-  color: var(--color-icon-default, rgba(255,255,255,0.5));
-}
-
-.notif-empty-copy {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: var(--space-4, 4px);
-  text-align: center;
-  width: 100%;
-  font-size: var(--size-medium, 14px);
-  line-height: var(--line-height-medium-paragraph, 20px);
-  font-family: var(--family-body, 'Inter', sans-serif);
-}
-
-.notif-empty-title {
-  color: var(--color-text-bolder, rgba(255,255,255,0.85));
-  font-weight: var(--weight-bold, 600);
-  margin: 0;
-}
-
-.notif-empty-body {
-  color: var(--color-text-subtle, rgba(255,255,255,0.5));
-  font-weight: var(--weight-regular, 400);
-  margin: 0;
 }
 
 /* -- Notification List -- */
