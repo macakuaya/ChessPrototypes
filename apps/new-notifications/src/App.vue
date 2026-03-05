@@ -728,6 +728,15 @@ body.dark-mode {
   flex: 1;
 }
 
+.notif-empty {
+  flex: 1;
+}
+
+.notif-empty :deep(.cc-empty-state-content) h1,
+.notif-empty :deep(.cc-empty-state-content) p {
+  margin: 0;
+}
+
 /* -- Notification List -- */
 
 .notif-list {
