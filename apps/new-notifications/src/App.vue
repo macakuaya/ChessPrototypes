@@ -265,7 +265,7 @@ function buildCategoryData() {
     clubs: [
       { id: 'club-1', type: 'Club News', title: 'Barcelona Chess Club', body: 'Posted news', time: '2h', avatar: avatars.barcelona, unread: true, hasActions: false, rollup: null },
       { id: 'club-4', type: 'Club Join Request', title: 'Barcelona Chess Club', body: 'NihalSarin wants to join', time: '3h', avatar: avatars.barcelona, unread: true, hasActions: true, rollup: null },
-      { id: 'club-2', type: 'Club Note', title: 'Team USA', body: 'Has 3 new notes', time: '5h', avatar: avatars.teamusa, unread: true, hasActions: false, rollup: null },
+      { id: 'club-2', type: 'Club Note', title: 'Team USA', body: 'Has 3 new notes', time: '5h', avatar: avatars.teamusa, unread: false, hasActions: false, rollup: null },
       { id: 'club-3', type: 'Club Forum Topic', title: 'Barcelona Chess Club', body: 'Has 3 new topics', time: '1d', avatar: avatars.barcelona, unread: false, hasActions: false, rollup: null },
     ],
 
@@ -345,13 +345,6 @@ const filteredNotifications = computed(() => {
   return notifications.value
 })
 
-function markNonActionableAsRead() {
-  notifications.value.forEach(n => {
-    if (n.unread && !n.hasActions) n.unread = false
-  })
-  notificationCount.value = notifications.value.filter(n => n.unread).length
-}
-
 function markAllAsRead() {
   notifications.value.forEach(n => { n.unread = false })
   notificationCount.value = 0
@@ -366,9 +359,6 @@ function deleteAll() {
 
 function toggleNotifications() {
   showNotifications.value = !showNotifications.value
-  if (showNotifications.value) {
-    markNonActionableAsRead()
-  }
 }
 
 function onDocumentClick(e) {
@@ -390,7 +380,6 @@ function dismissNotification(id) {
 
 function highlightNotification(id) {
   showNotifications.value = true
-  markNonActionableAsRead()
   highlightedId.value = null
   nextTick(() => {
     highlightedId.value = id
