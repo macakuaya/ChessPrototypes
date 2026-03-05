@@ -3,21 +3,7 @@
     <nav class="nav-component">
       <div class="nav-top">
         <div class="nav-logo">
-          <div class="nav-logo-figma" aria-label="Chess.com">
-            <div class="logo-v logo-v1"><img src="https://www.figma.com/api/mcp/asset/c3f9d460-641a-4f9a-a299-be217a63fbcd" alt="" /></div>
-            <div class="logo-v logo-v2"><img src="https://www.figma.com/api/mcp/asset/ebe99667-779d-4a6a-ace2-fc32def158ff" alt="" /></div>
-            <div class="logo-v logo-v3"><img src="https://www.figma.com/api/mcp/asset/d794a64b-9ffc-4e5d-b2a3-384ccf1157fd" alt="" /></div>
-            <div class="logo-v logo-v4"><img src="https://www.figma.com/api/mcp/asset/088fd9e9-7b4b-4b02-8404-f93c3458b8c3" alt="" /></div>
-            <div class="logo-v logo-v5"><img src="https://www.figma.com/api/mcp/asset/e2a2ee79-bf01-41b4-a239-cc795c5bbaa1" alt="" /></div>
-            <div class="logo-v logo-v6"><img src="https://www.figma.com/api/mcp/asset/7ac219fa-83ca-45b0-87b3-b16fc00ab16f" alt="" /></div>
-            <div class="logo-v logo-v7"><img src="https://www.figma.com/api/mcp/asset/a39d4dc8-4459-4963-8b1f-e4d011368a2e" alt="" /></div>
-            <div class="logo-v logo-v8"><img src="https://www.figma.com/api/mcp/asset/110dd055-1b78-4e16-8360-d49cb8146ccb" alt="" /></div>
-            <div class="logo-v logo-v9"><img src="https://www.figma.com/api/mcp/asset/c3025627-c268-4b4f-9c80-dfb87bcef980" alt="" /></div>
-            <div class="logo-v logo-v10"><img src="https://www.figma.com/api/mcp/asset/8ae15c77-afc2-4e72-9b43-9d007130ceba" alt="" /></div>
-            <div class="logo-v logo-v11"><img src="https://www.figma.com/api/mcp/asset/ad937973-b8f1-4df0-9bfa-edbc9b0959e5" alt="" /></div>
-            <div class="logo-v logo-v12"><img src="https://www.figma.com/api/mcp/asset/8815367f-4a5f-4ce7-b566-b4c9b739f24a" alt="" /></div>
-            <div class="logo-v logo-v13"><img src="https://www.figma.com/api/mcp/asset/578ccd70-7364-475f-9650-e702f50e3ca3" alt="" /></div>
-          </div>
+          <img class="nav-logo-img" src="/ChessPrototypes/new-notifications/chess-com-logo.png" alt="Chess.com" />
         </div>
 
         <div class="nav-links">
@@ -145,6 +131,15 @@
               <span class="notif-roll-text cc-text-small">{{ n.rollup.text }}</span>
             </div>
           </div>
+          <cc-icon-button
+            class="notif-dismiss"
+            :icon="{ name: 'mark-cross', variant: 'glyph' }"
+            variant="ghost"
+            size="small"
+            :icon-size="16"
+            tooltip="Dismiss"
+            @click.stop="dismissNotification(n.id)"
+          />
         </div>
       </div>
 
@@ -232,7 +227,6 @@ const avatars = {
 
 const categories = [
   { id: 'clubs', label: 'Clubs' },
-  { id: 'games', label: 'Games' },
   { id: 'social', label: 'Social' },
   { id: 'achievements', label: 'Achievements & Rewards' },
   { id: 'other', label: 'Other' },
@@ -241,12 +235,6 @@ const categories = [
 
 function buildCategoryData() {
   return {
-    games: [
-      { id: 'game-1', type: 'Team Match', title: 'CHESScom', body: 'A new Team Match is starting', time: '23h', avatar: avatars.chesscom, unread: true, hasActions: false, rollup: null },
-      { id: 'game-2', type: 'Your Move (Daily)', title: "It's your move!", body: 'FabianoCaruana played Nxe5.', time: '3d', avatar: avatars.fabiano, unread: false, hasActions: false, rollup: null },
-      { id: 'game-3', type: 'Game Finished', title: 'You won!', body: 'You beat HikaruNakamura on time.', time: '40d', avatar: avatars.hikaru, unread: false, hasActions: false, rollup: null },
-    ],
-
     clubs: [
       { id: 'club-1', type: 'Club News', title: 'Barcelona Chess Club', body: 'Posted news', time: '2h', avatar: avatars.barcelona, unread: true, hasActions: false, rollup: null },
       { id: 'club-4', type: 'Club Join Request', title: 'Barcelona Chess Club', body: 'NihalSarin wants to join', time: '3h', avatar: avatars.barcelona, unread: true, hasActions: true, rollup: null },
@@ -328,16 +316,28 @@ const filteredNotifications = computed(() => {
   return notifications.value
 })
 
+function markNonActionableAsRead() {
+  notifications.value.forEach(n => {
+    if (n.unread && !n.hasActions) n.unread = false
+  })
+  notificationCount.value = notifications.value.filter(n => n.unread).length
+}
+
 function toggleNotifications() {
   showNotifications.value = !showNotifications.value
   if (showNotifications.value) {
-    notificationCount.value = 0
+    markNonActionableAsRead()
   }
+}
+
+function dismissNotification(id) {
+  notifications.value = notifications.value.filter(n => n.id !== id)
+  notificationCount.value = notifications.value.filter(n => n.unread).length
 }
 
 function highlightNotification(id) {
   showNotifications.value = true
-  notificationCount.value = 0
+  markNonActionableAsRead()
   highlightedId.value = null
   nextTick(() => {
     highlightedId.value = id
@@ -411,36 +411,11 @@ body.dark-mode {
   padding: var(--space-4, 0.4rem) 0.9rem;
 }
 
-.nav-logo-figma {
-  position: relative;
-  width: 11.4rem;
-  height: 3.2rem;
-  overflow: hidden;
-}
-
-.logo-v {
-  position: absolute;
-}
-
-.logo-v img {
+.nav-logo-img {
   display: block;
   width: 100%;
-  height: 100%;
+  height: auto;
 }
-
-.logo-v1 { inset: 1.14% 81.5% 0.63% 0; }
-.logo-v2 { inset: 46.96% 89.67% 14.16% 0.41%; }
-.logo-v3 { inset: 0.01% 87.32% 56.62% 3.43%; }
-.logo-v4 { inset: 3.16% 90.13% 85.09% 6.19%; }
-.logo-v5 { inset: 26.44% 62.21% 17.78% 26.8%; }
-.logo-v6 { inset: 39.44% 49.37% 17.16% 39.25%; }
-.logo-v7 { inset: 39.44% 27.13% 17.16% 62.55%; }
-.logo-v8 { inset: 76.25% 25.18% 17.16% 73.03%; }
-.logo-v9 { inset: 54.94% 10.99% 17.16% 81.58%; }
-.logo-v10 { inset: 54.93% 0 17.47% 89.94%; }
-.logo-v11 { inset: 54.94% 19.01% 17.16% 75.11%; }
-.logo-v12 { inset: 39% 37.72% 16.36% 51.66%; }
-.logo-v13 { inset: 26.44% 74.89% 16.84% 12.83%; }
 
 /* ---- Links ---- */
 
@@ -656,7 +631,8 @@ body.dark-mode {
   left: 8px;
   bottom: 64px;
   width: 300px;
-  height: 440px;
+  min-height: 440px;
+  max-height: calc(100vh - 80px);
   background: var(--color-bg-opaque, #262421);
   border: 1px solid var(--color-border-default, rgba(255,255,255,0.1));
   border-radius: var(--radius-l, 5px);
@@ -710,14 +686,28 @@ body.dark-mode {
   align-items: flex-start;
   padding: var(--space-8, 8px);
   border-radius: var(--radius-l, 5px);
+  position: relative;
 }
 
 .notif-item-detailed {
-  gap: var(--space-12, 12px);
+  gap: var(--space-8, 8px);
 }
 
 .notif-item:hover {
   background: var(--color-bg-subtlest, rgba(255,255,255,0.02));
+}
+
+.notif-dismiss {
+  position: absolute;
+  top: 0;
+  right: 0;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.notif-item:hover .notif-dismiss {
+  opacity: 1;
+  pointer-events: auto;
 }
 
 /* -- Notification Content -- */
@@ -753,6 +743,10 @@ body.dark-mode {
 .notif-time {
   flex-shrink: 0;
   color: var(--color-text-subtle, rgba(255,255,255,0.5));
+}
+
+.notif-item:hover .notif-time {
+  visibility: hidden;
 }
 
 .notif-body-row {
