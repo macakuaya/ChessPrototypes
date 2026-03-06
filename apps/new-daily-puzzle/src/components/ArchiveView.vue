@@ -62,38 +62,29 @@ const MOCK_STATES = {
   },
 }
 
+const STREAK_DAYS = 7
+const streakDates = new Set()
+{
+  const d = new Date(todayYear, todayMonth, todayDay)
+  for (let i = 1; i < STREAK_DAYS; i++) {
+    d.setDate(d.getDate() - 1)
+    streakDates.add(`${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`)
+  }
+}
+
 const getState = (day) => {
   const y = currentYear.value
   const m = currentMonth.value
   if (y === todayYear && m === todayMonth && day === todayDay) return 'today'
   if (y === todayYear && m === todayMonth && day > todayDay) return 'future'
   if (y > todayYear || (y === todayYear && m > todayMonth)) return 'future'
+  if (streakDates.has(`${y}-${m}-${day}`)) return 'streak'
   const monthData = MOCK_STATES[y]?.[m]
   if (monthData && monthData[day]) return monthData[day]
   return 'empty'
 }
 
-// Count consecutive streak days ending at today
-const streakLength = computed(() => {
-  let count = 0
-  const d = new Date(todayYear, todayMonth, todayDay)
-  while (true) {
-    const y = d.getFullYear()
-    const m = d.getMonth()
-    const day = d.getDate()
-    const monthData = MOCK_STATES[y]?.[m]
-    const state = (y === todayYear && m === todayMonth && day === todayDay)
-      ? 'today'
-      : monthData?.[day]
-    if (state === 'streak' || state === 'today') {
-      count++
-      d.setDate(d.getDate() - 1)
-    } else {
-      break
-    }
-  }
-  return count
-})
+const streakLength = computed(() => STREAK_DAYS)
 
 const streakColor = computed(() => {
   const s = streakLength.value

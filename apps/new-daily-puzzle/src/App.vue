@@ -66,7 +66,7 @@ const puzzle = {
     title: 'Awesome!',
     subtitle: 'No mistakes were made.\nYou are in the top 1% earliest to do it!',
     totalSolved: 145,
-    currentStreak: 26,
+    currentStreak: 7,
     bestRecord: 35,
     totalLives: 5,
     videoTitle: 'Learn more about this puzzle',

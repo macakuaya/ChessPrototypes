@@ -141,11 +141,11 @@ const totalDigits = computed(() => digitDiff(props.totalSolved - 1, props.totalS
           <div class="text-section">
             <div class="title-group">
               <h2 class="title">{{ title }}</h2>
-              <p class="subtitle">
+              <!-- <p class="subtitle">
                 <template v-for="(line, i) in subtitleLines" :key="i">
                   {{ line }}<br v-if="i < subtitleLines.length - 1" />
                 </template>
-              </p>
+              </p> -->
             </div>
 
             <!-- Hearts -->
@@ -191,8 +191,8 @@ const totalDigits = computed(() => digitDiff(props.totalSolved - 1, props.totalS
                 <span class="stat-label">Streak</span>
               </div>
               <div class="stat">
-                <span class="stat-value">89</span>
-                <span class="stat-label">Solve %</span>
+                <span class="stat-value">89<span class="percent-sign">%</span></span>
+                <span class="stat-label">Solved</span>
               </div>
               <div class="stat">
                 <span class="stat-value stat-digits">

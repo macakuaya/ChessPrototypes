@@ -12,7 +12,11 @@ export function useShare(puzzle, parseFEN, lives, successTitle) {
       const file = p.square.charCodeAt(0) - 'a'.charCodeAt(0)
       const rank = parseInt(p.square[1]) - 1
       const row = 7 - rank
-      board[row][file] = p.type.startsWith('w') ? 'w' : 'b'
+      if (p.type === 'wk' || p.type === 'bk') {
+        board[row][file] = 'king'
+      } else {
+        board[row][file] = p.type.startsWith('w') ? 'w' : 'b'
+      }
     }
 
     const solutionSquares = new Set()
@@ -29,6 +33,7 @@ export function useShare(puzzle, parseFEN, lives, successTitle) {
 
     const grid = board.map((row, r) =>
       row.map((cell, c) => {
+        if (cell === 'king') return '👑'
         if (cell === 'b') return '⚫'
         if (cell === 'w') return '🟡'
         return (r + c) % 2 === 0 ? '⬜' : '🟩'
