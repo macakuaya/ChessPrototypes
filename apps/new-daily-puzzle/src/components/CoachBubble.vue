@@ -348,7 +348,7 @@ function onAfterLeave() {
 }
 
 .hint-icon {
-  color: var(--color-gray-700, #4B4847);
+  color: var(--color-gold-300, #E3AA24);
 }
 
 .correct-icon {
